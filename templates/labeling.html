@@ -1,0 +1,427 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="h-screen flex flex-col">
+    <!-- Header -->
+    <div class="bg-white shadow-sm border-b border-gray-200 px-6 py-4">
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900">{{ project.name }}</h1>
+                <p class="text-sm text-gray-600">{{ dataset.name }} - Image Labeling</p>
+            </div>
+            <div class="flex items-center space-x-4">
+                <div class="text-sm text-gray-500">
+                    <span id="current-image">1</span> of <span id="total-images">{{ images|length }}</span>
+                </div>
+                <button id="save-annotations" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+                    <i class="fas fa-save mr-2"></i>Save
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="flex-1 flex">
+        <!-- Sidebar -->
+        <div class="w-80 bg-gray-50 border-r border-gray-200 flex flex-col">
+            <!-- Label Categories -->
+            <div class="p-4 border-b border-gray-200">
+                <h3 class="text-lg font-semibold text-gray-900 mb-3">Label Categories</h3>
+                <div class="space-y-2">
+                    {% for category in label_categories %}
+                    <div class="label-category flex items-center p-2 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors" 
+                         data-category-id="{{ category.id }}" 
+                         data-color="{{ category.color }}">
+                        <div class="w-4 h-4 rounded-full mr-3" style="background-color: {{ category.color }}"></div>
+                        <span class="text-sm font-medium text-gray-900">{{ category.name }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                <button id="add-category" class="mt-3 w-full text-sm text-blue-600 hover:text-blue-700 font-medium">
+                    <i class="fas fa-plus mr-1"></i>Add Category
+                </button>
+            </div>
+
+            <!-- Image Thumbnails -->
+            <div class="flex-1 p-4 overflow-y-auto">
+                <h3 class="text-lg font-semibold text-gray-900 mb-3">Images</h3>
+                <div class="grid grid-cols-2 gap-2">
+                    {% for image in images %}
+                    <div class="image-thumbnail cursor-pointer border-2 border-transparent hover:border-blue-500 rounded-lg overflow-hidden transition-colors" 
+                         data-image-id="{{ image.id }}">
+                        <img src="/uploads/{{ image.thumbnail_path }}" 
+                             alt="{{ image.original_filename }}" 
+                             class="w-full h-20 object-cover">
+                        <div class="p-1 text-xs text-gray-600 truncate">{{ image.original_filename }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Canvas Area -->
+        <div class="flex-1 flex flex-col">
+            <!-- Toolbar -->
+            <div class="bg-white border-b border-gray-200 px-4 py-2">
+                <div class="flex items-center space-x-4">
+                    <div class="flex items-center space-x-2">
+                        <button id="select-tool" class="tool-btn active px-3 py-1 rounded text-sm font-medium bg-blue-100 text-blue-700">
+                            <i class="fas fa-mouse-pointer mr-1"></i>Select
+                        </button>
+                        <button id="bbox-tool" class="tool-btn px-3 py-1 rounded text-sm font-medium text-gray-700 hover:bg-gray-100">
+                            <i class="fas fa-square mr-1"></i>Bounding Box
+                        </button>
+                        <button id="polygon-tool" class="tool-btn px-3 py-1 rounded text-sm font-medium text-gray-700 hover:bg-gray-100">
+                            <i class="fas fa-draw-polygon mr-1"></i>Polygon
+                        </button>
+                        <button id="point-tool" class="tool-btn px-3 py-1 rounded text-sm font-medium text-gray-700 hover:bg-gray-100">
+                            <i class="fas fa-circle mr-1"></i>Point
+                        </button>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <button id="zoom-in" class="px-2 py-1 rounded text-sm text-gray-700 hover:bg-gray-100">
+                            <i class="fas fa-search-plus"></i>
+                        </button>
+                        <button id="zoom-out" class="px-2 py-1 rounded text-sm text-gray-700 hover:bg-gray-100">
+                            <i class="fas fa-search-minus"></i>
+                        </button>
+                        <button id="fit-to-screen" class="px-2 py-1 rounded text-sm text-gray-700 hover:bg-gray-100">
+                            <i class="fas fa-expand-arrows-alt"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Image Canvas -->
+            <div class="flex-1 relative overflow-hidden bg-gray-100">
+                <div id="canvas-container" class="absolute inset-0 flex items-center justify-center">
+                    <div id="image-container" class="relative">
+                        <img id="main-image" 
+                             src="" 
+                             alt="Image to label" 
+                             class="max-w-full max-h-full object-contain">
+                        <canvas id="annotation-canvas" 
+                                class="absolute inset-0 cursor-crosshair"></canvas>
+                    </div>
+                </div>
+                
+                <!-- Loading overlay -->
+                <div id="loading-overlay" class="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center hidden">
+                    <div class="text-center">
+                        <div class="spinner mx-auto mb-4"></div>
+                        <p class="text-gray-600">Loading image...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Category Modal -->
+<div id="add-category-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden items-center justify-center z-50">
+    <div class="bg-white rounded-lg p-6 w-96">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">Add Label Category</h3>
+        <form id="category-form">
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Category Name</label>
+                <input type="text" id="category-name" required 
+                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+            </div>
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Color</label>
+                <div class="flex items-center space-x-2">
+                    <input type="color" id="category-color" value="#3B82F6" 
+                           class="w-12 h-8 border border-gray-300 rounded">
+                    <input type="text" id="category-color-text" value="#3B82F6" 
+                           class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                </div>
+            </div>
+            <div class="flex justify-end space-x-3">
+                <button type="button" id="cancel-category" 
+                        class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200">
+                    Cancel
+                </button>
+                <button type="submit" 
+                        class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700">
+                    Add Category
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Data labeling interface JavaScript
+let currentImageIndex = 0;
+let currentTool = 'select';
+let selectedCategory = null;
+let annotations = [];
+let isDrawing = false;
+let startX, startY;
+
+const images = {{ images | tojson }};
+const labelCategories = {{ label_categories | tojson }};
+
+// Initialize the interface
+document.addEventListener('DOMContentLoaded', function() {
+    if (images.length > 0) {
+        loadImage(0);
+    }
+    
+    setupEventListeners();
+    loadAnnotations();
+});
+
+function setupEventListeners() {
+    // Tool selection
+    document.querySelectorAll('.tool-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active', 'bg-blue-100', 'text-blue-700'));
+            this.classList.add('active', 'bg-blue-100', 'text-blue-700');
+            currentTool = this.id.replace('-tool', '');
+        });
+    });
+
+    // Label category selection
+    document.querySelectorAll('.label-category').forEach(cat => {
+        cat.addEventListener('click', function() {
+            document.querySelectorAll('.label-category').forEach(c => c.classList.remove('bg-blue-100'));
+            this.classList.add('bg-blue-100');
+            selectedCategory = parseInt(this.dataset.categoryId);
+        });
+    });
+
+    // Image thumbnails
+    document.querySelectorAll('.image-thumbnail').forEach((thumb, index) => {
+        thumb.addEventListener('click', function() {
+            loadImage(index);
+        });
+    });
+
+    // Canvas events
+    const canvas = document.getElementById('annotation-canvas');
+    canvas.addEventListener('mousedown', startDrawing);
+    canvas.addEventListener('mousemove', draw);
+    canvas.addEventListener('mouseup', stopDrawing);
+
+    // Save button
+    document.getElementById('save-annotations').addEventListener('click', saveAnnotations);
+
+    // Add category modal
+    document.getElementById('add-category').addEventListener('click', () => {
+        document.getElementById('add-category-modal').classList.remove('hidden');
+        document.getElementById('add-category-modal').classList.add('flex');
+    });
+
+    document.getElementById('cancel-category').addEventListener('click', () => {
+        document.getElementById('add-category-modal').classList.add('hidden');
+        document.getElementById('add-category-modal').classList.remove('flex');
+    });
+
+    document.getElementById('category-form').addEventListener('submit', addCategory);
+}
+
+function loadImage(index) {
+    if (index < 0 || index >= images.length) return;
+    
+    currentImageIndex = index;
+    const image = images[index];
+    
+    document.getElementById('loading-overlay').classList.remove('hidden');
+    
+    const img = document.getElementById('main-image');
+    img.onload = function() {
+        document.getElementById('loading-overlay').classList.add('hidden');
+        setupCanvas();
+        loadImageAnnotations(image.id);
+    };
+    
+    img.src = `/uploads/${image.file_path}`;
+    document.getElementById('current-image').textContent = index + 1;
+    
+    // Update thumbnail selection
+    document.querySelectorAll('.image-thumbnail').forEach((thumb, i) => {
+        thumb.classList.toggle('border-blue-500', i === index);
+    });
+}
+
+function setupCanvas() {
+    const canvas = document.getElementById('annotation-canvas');
+    const img = document.getElementById('main-image');
+    const container = document.getElementById('image-container');
+    
+    // Set canvas size to match image
+    canvas.width = img.offsetWidth;
+    canvas.height = img.offsetHeight;
+    
+    // Clear canvas
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+}
+
+function startDrawing(e) {
+    if (currentTool === 'select' || !selectedCategory) return;
+    
+    isDrawing = true;
+    const rect = e.target.getBoundingClientRect();
+    startX = e.clientX - rect.left;
+    startY = e.clientY - rect.top;
+}
+
+function draw(e) {
+    if (!isDrawing || currentTool === 'select') return;
+    
+    const canvas = document.getElementById('annotation-canvas');
+    const ctx = canvas.getContext('2d');
+    const rect = e.target.getBoundingClientRect();
+    const currentX = e.clientX - rect.left;
+    const currentY = e.clientY - rect.top;
+    
+    // Clear canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Draw existing annotations
+    drawExistingAnnotations();
+    
+    // Draw current annotation
+    if (currentTool === 'bbox') {
+        ctx.strokeStyle = getCategoryColor(selectedCategory);
+        ctx.lineWidth = 2;
+        ctx.strokeRect(startX, startY, currentX - startX, currentY - startY);
+    } else if (currentTool === 'point') {
+        ctx.fillStyle = getCategoryColor(selectedCategory);
+        ctx.beginPath();
+        ctx.arc(startX, startY, 5, 0, 2 * Math.PI);
+        ctx.fill();
+    }
+}
+
+function stopDrawing(e) {
+    if (!isDrawing || currentTool === 'select') return;
+    
+    isDrawing = false;
+    const rect = e.target.getBoundingClientRect();
+    const endX = e.clientX - rect.left;
+    const endY = e.clientY - rect.top;
+    
+    // Create annotation
+    const annotation = {
+        id: Date.now(),
+        image_id: images[currentImageIndex].id,
+        label_category_id: selectedCategory,
+        tool: currentTool,
+        coordinates: {
+            startX, startY, endX, endY
+        },
+        created_at: new Date().toISOString()
+    };
+    
+    annotations.push(annotation);
+    drawExistingAnnotations();
+}
+
+function drawExistingAnnotations() {
+    const canvas = document.getElementById('annotation-canvas');
+    const ctx = canvas.getContext('2d');
+    
+    annotations.forEach(annotation => {
+        if (annotation.image_id !== images[currentImageIndex].id) return;
+        
+        ctx.strokeStyle = getCategoryColor(annotation.label_category_id);
+        ctx.fillStyle = getCategoryColor(annotation.label_category_id);
+        ctx.lineWidth = 2;
+        
+        if (annotation.tool === 'bbox') {
+            const { startX, startY, endX, endY } = annotation.coordinates;
+            ctx.strokeRect(startX, startY, endX - startX, endY - startY);
+        } else if (annotation.tool === 'point') {
+            const { startX, startY } = annotation.coordinates;
+            ctx.beginPath();
+            ctx.arc(startX, startY, 5, 0, 2 * Math.PI);
+            ctx.fill();
+        }
+    });
+}
+
+function getCategoryColor(categoryId) {
+    const category = labelCategories.find(cat => cat.id === categoryId);
+    return category ? category.color : '#3B82F6';
+}
+
+function loadImageAnnotations(imageId) {
+    // Load existing annotations for this image
+    fetch(`/api/annotations/${imageId}`)
+        .then(response => response.json())
+        .then(data => {
+            annotations = data.annotations || [];
+            drawExistingAnnotations();
+        })
+        .catch(error => {
+            console.error('Error loading annotations:', error);
+        });
+}
+
+function saveAnnotations() {
+    const imageId = images[currentImageIndex].id;
+    const imageAnnotations = annotations.filter(ann => ann.image_id === imageId);
+    
+    // Save each annotation
+    const savePromises = imageAnnotations.map(annotation => {
+        return fetch('/api/annotations', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('session_token')}`
+            },
+            body: JSON.stringify({
+                image_id: annotation.image_id,
+                label_category_id: annotation.label_category_id,
+                annotation_data: annotation.coordinates,
+                confidence: 1.0
+            })
+        });
+    });
+    
+    Promise.all(savePromises)
+        .then(() => {
+            showNotification('Annotations saved successfully!', 'success');
+        })
+        .catch(error => {
+            console.error('Error saving annotations:', error);
+            showNotification('Error saving annotations', 'error');
+        });
+}
+
+function addCategory(e) {
+    e.preventDefault();
+    
+    const name = document.getElementById('category-name').value;
+    const color = document.getElementById('category-color').value;
+    
+    fetch('/api/label-categories', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('session_token')}`
+        },
+        body: JSON.stringify({
+            name: name,
+            color: color,
+            project_id: {{ project.id }}
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        showNotification('Category added successfully!', 'success');
+        location.reload(); // Refresh to show new category
+    })
+    .catch(error => {
+        console.error('Error adding category:', error);
+        showNotification('Error adding category', 'error');
+    });
+}
+</script>
+{% endblock %}
