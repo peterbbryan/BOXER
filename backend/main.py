@@ -47,7 +47,10 @@ app.add_middleware(
 # Templates and static files
 templates = Jinja2Templates(directory="../templates")
 app.mount("/static", StaticFiles(directory="../static"), name="static")
-app.mount("/uploads", StaticFiles(directory="../uploads"), name="uploads")
+
+# Mount uploads directory to serve uploaded images and thumbnails
+uploads_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "uploads")
+app.mount("/uploads", StaticFiles(directory=str(uploads_dir)), name="uploads")
 
 # Pydantic models
 class ProjectCreate(BaseModel):
@@ -228,6 +231,11 @@ async def upload_image(
         buffer.write(content)
     
     try:
+        # Additional validation using image_utils
+        from image_utils import validate_image
+        if not validate_image(temp_path):
+            raise HTTPException(status_code=400, detail="Invalid image file")
+        
         # Process image
         image_info = process_uploaded_image(temp_path, file.filename)
         

@@ -56,10 +56,14 @@ def generate_unique_filename(original_filename: str) -> str:
 
 def ensure_upload_directories():
     """Ensure upload directories exist"""
+    # Get absolute paths relative to backend directory
+    backend_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(backend_dir)
+    
     directories = [
-        "uploads/images",
-        "uploads/thumbnails",
-        "data"
+        os.path.join(project_root, "uploads", "images"),
+        os.path.join(project_root, "uploads", "thumbnails"),
+        os.path.join(project_root, "data")
     ]
     
     for directory in directories:
@@ -69,18 +73,22 @@ def process_uploaded_image(file_path: str, original_filename: str) -> dict:
     """Process an uploaded image and create thumbnail"""
     ensure_upload_directories()
     
+    # Get absolute paths
+    backend_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(backend_dir)
+    
     # Generate unique filename
     unique_filename = generate_unique_filename(original_filename)
     
-    # Move to images directory
-    images_dir = "uploads/images"
+    # Move to images directory (use absolute paths)
+    images_dir = os.path.join(project_root, "uploads", "images")
     final_path = os.path.join(images_dir, unique_filename)
     
     # Move file
     os.rename(file_path, final_path)
     
-    # Create thumbnail
-    thumbnail_dir = "uploads/thumbnails"
+    # Create thumbnail (use absolute paths)
+    thumbnail_dir = os.path.join(project_root, "uploads", "thumbnails")
     thumbnail_filename = f"thumb_{unique_filename}"
     thumbnail_path = os.path.join(thumbnail_dir, thumbnail_filename)
     
@@ -89,15 +97,29 @@ def process_uploaded_image(file_path: str, original_filename: str) -> dict:
     # Get image info
     image_info = get_image_info(final_path)
     
+    # Get proper MIME type
+    format_name = image_info.get("format", "").lower()
+    mime_type_map = {
+        "jpeg": "image/jpeg",
+        "jpg": "image/jpeg", 
+        "png": "image/png",
+        "gif": "image/gif",
+        "bmp": "image/bmp",
+        "tiff": "image/tiff",
+        "webp": "image/webp"
+    }
+    mime_type = mime_type_map.get(format_name, f"image/{format_name}")
+    
+    # Return relative paths for storage in database
     return {
         "filename": unique_filename,
         "original_filename": original_filename,
-        "file_path": final_path,
-        "thumbnail_path": thumbnail_path,
+        "file_path": os.path.join("uploads", "images", unique_filename),
+        "thumbnail_path": os.path.join("uploads", "thumbnails", thumbnail_filename),
         "width": image_info.get("width", 0),
         "height": image_info.get("height", 0),
         "file_size": image_info.get("file_size", 0),
-        "mime_type": f"image/{image_info.get('format', '').lower()}"
+        "mime_type": mime_type
     }
 
 def resize_image_for_display(image_path: str, max_width: int = 1200, max_height: int = 800) -> str:

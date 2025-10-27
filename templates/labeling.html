@@ -5,14 +5,14 @@
 {% block content %}
 <div class="h-screen flex flex-col">
     <!-- Header -->
-    <div class="bg-white shadow-sm border-b border-gray-200 px-6 py-4">
+    <div class="bg-gray-800 shadow-sm border-b border-gray-700 px-6 py-4">
         <div class="flex items-center justify-between">
             <div>
-                <h1 class="text-2xl font-bold text-gray-900">{{ project.name }}</h1>
-                <p class="text-sm text-gray-600">{{ dataset.name }} - Image Labeling</p>
+                <h1 class="text-2xl font-bold text-white">{{ project.name }}</h1>
+                <p class="text-sm text-gray-400">{{ dataset.name }} - Image Labeling</p>
             </div>
             <div class="flex items-center space-x-4">
-                <div class="text-sm text-gray-500">
+                <div class="text-sm text-gray-400">
                     <span id="current-image">1</span> of <span id="total-images">{{ images|length }}</span>
                 </div>
                 <button id="save-annotations" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
@@ -24,36 +24,57 @@
 
     <div class="flex-1 flex">
         <!-- Sidebar -->
-        <div class="w-80 bg-gray-50 border-r border-gray-200 flex flex-col">
+        <div class="w-80 bg-gray-800 border-r border-gray-700 flex flex-col">
             <!-- Label Categories -->
-            <div class="p-4 border-b border-gray-200">
-                <h3 class="text-lg font-semibold text-gray-900 mb-3">Label Categories</h3>
+            <div class="p-4 border-b border-gray-700">
+                <h3 class="text-lg font-semibold text-white mb-3">Label Categories</h3>
                 <div class="space-y-2">
                     {% for category in label_categories %}
-                    <div class="label-category flex items-center p-2 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors" 
+                    <div class="label-category flex items-center p-2 rounded-lg cursor-pointer hover:bg-gray-700 transition-colors" 
                          data-category-id="{{ category.id }}" 
                          data-color="{{ category.color }}">
                         <div class="w-4 h-4 rounded-full mr-3" style="background-color: {{ category.color }}"></div>
-                        <span class="text-sm font-medium text-gray-900">{{ category.name }}</span>
+                        <span class="text-sm font-medium text-gray-200">{{ category.name }}</span>
                     </div>
                     {% endfor %}
                 </div>
-                <button id="add-category" class="mt-3 w-full text-sm text-blue-600 hover:text-blue-700 font-medium">
+                <button id="add-category" class="mt-3 w-full text-sm text-blue-400 hover:text-blue-300 font-medium">
                     <i class="fas fa-plus mr-1"></i>Add Category
                 </button>
             </div>
 
+            <!-- Image Upload -->
+            <div class="p-4 border-b border-gray-700">
+                <h3 class="text-lg font-semibold text-white mb-3">Upload Images</h3>
+                <div class="space-y-3">
+                    <div class="border-2 border-dashed border-gray-600 rounded-lg p-4 text-center hover:border-blue-400 transition-colors">
+                        <input type="file" id="image-upload" multiple accept="image/*,.tiff,.tif" class="hidden">
+                        <label for="image-upload" class="cursor-pointer">
+                            <i class="fas fa-cloud-upload-alt text-3xl text-gray-400 mb-2"></i>
+                            <p class="text-sm text-gray-300">Click to upload images</p>
+                            <p class="text-xs text-gray-500">PNG, JPG, JPEG, GIF, TIFF supported</p>
+                        </label>
+                    </div>
+                    <button id="upload-images" class="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                        <i class="fas fa-upload mr-2"></i>Upload Selected Images
+                    </button>
+                </div>
+            </div>
+
             <!-- Image Thumbnails -->
             <div class="flex-1 p-4 overflow-y-auto">
-                <h3 class="text-lg font-semibold text-gray-900 mb-3">Images</h3>
-                <div class="grid grid-cols-2 gap-2">
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="text-lg font-semibold text-white">Images</h3>
+                    <span class="text-sm text-gray-400" id="image-count">{{ images|length }} images</span>
+                </div>
+                <div class="grid grid-cols-2 gap-2" id="image-grid">
                     {% for image in images %}
                     <div class="image-thumbnail cursor-pointer border-2 border-transparent hover:border-blue-500 rounded-lg overflow-hidden transition-colors" 
                          data-image-id="{{ image.id }}">
-                        <img src="/uploads/{{ image.thumbnail_path }}" 
+                        <img src="/{{ image.thumbnail_path }}" 
                              alt="{{ image.original_filename }}" 
                              class="w-full h-20 object-cover">
-                        <div class="p-1 text-xs text-gray-600 truncate">{{ image.original_filename }}</div>
+                        <div class="p-1 text-xs text-gray-300 truncate">{{ image.original_filename }}</div>
                     </div>
                     {% endfor %}
                 </div>
@@ -63,30 +84,30 @@
         <!-- Main Canvas Area -->
         <div class="flex-1 flex flex-col">
             <!-- Toolbar -->
-            <div class="bg-white border-b border-gray-200 px-4 py-2">
+            <div class="bg-gray-800 border-b border-gray-700 px-4 py-2">
                 <div class="flex items-center space-x-4">
                     <div class="flex items-center space-x-2">
-                        <button id="select-tool" class="tool-btn active px-3 py-1 rounded text-sm font-medium bg-blue-100 text-blue-700">
+                        <button id="select-tool" class="tool-btn active px-3 py-1 rounded text-sm font-medium bg-blue-600 text-white">
                             <i class="fas fa-mouse-pointer mr-1"></i>Select
                         </button>
-                        <button id="bbox-tool" class="tool-btn px-3 py-1 rounded text-sm font-medium text-gray-700 hover:bg-gray-100">
+                        <button id="bbox-tool" class="tool-btn px-3 py-1 rounded text-sm font-medium text-gray-300 hover:bg-gray-700">
                             <i class="fas fa-square mr-1"></i>Bounding Box
                         </button>
-                        <button id="polygon-tool" class="tool-btn px-3 py-1 rounded text-sm font-medium text-gray-700 hover:bg-gray-100">
+                        <button id="polygon-tool" class="tool-btn px-3 py-1 rounded text-sm font-medium text-gray-300 hover:bg-gray-700">
                             <i class="fas fa-draw-polygon mr-1"></i>Polygon
                         </button>
-                        <button id="point-tool" class="tool-btn px-3 py-1 rounded text-sm font-medium text-gray-700 hover:bg-gray-100">
+                        <button id="point-tool" class="tool-btn px-3 py-1 rounded text-sm font-medium text-gray-300 hover:bg-gray-700">
                             <i class="fas fa-circle mr-1"></i>Point
                         </button>
                     </div>
                     <div class="flex items-center space-x-2">
-                        <button id="zoom-in" class="px-2 py-1 rounded text-sm text-gray-700 hover:bg-gray-100">
+                        <button id="zoom-in" class="px-2 py-1 rounded text-sm text-gray-300 hover:bg-gray-700">
                             <i class="fas fa-search-plus"></i>
                         </button>
-                        <button id="zoom-out" class="px-2 py-1 rounded text-sm text-gray-700 hover:bg-gray-100">
+                        <button id="zoom-out" class="px-2 py-1 rounded text-sm text-gray-300 hover:bg-gray-700">
                             <i class="fas fa-search-minus"></i>
                         </button>
-                        <button id="fit-to-screen" class="px-2 py-1 rounded text-sm text-gray-700 hover:bg-gray-100">
+                        <button id="fit-to-screen" class="px-2 py-1 rounded text-sm text-gray-300 hover:bg-gray-700">
                             <i class="fas fa-expand-arrows-alt"></i>
                         </button>
                     </div>
@@ -94,23 +115,29 @@
             </div>
 
             <!-- Image Canvas -->
-            <div class="flex-1 relative overflow-hidden bg-gray-100">
+            <div class="flex-1 relative overflow-hidden bg-gray-900">
                 <div id="canvas-container" class="absolute inset-0 flex items-center justify-center">
                     <div id="image-container" class="relative">
                         <img id="main-image" 
                              src="" 
                              alt="Image to label" 
-                             class="max-w-full max-h-full object-contain">
+                             class="max-w-full max-h-full object-contain hidden">
                         <canvas id="annotation-canvas" 
                                 class="absolute inset-0 cursor-crosshair"></canvas>
+                        <!-- No image placeholder -->
+                        <div id="no-image-placeholder" class="flex flex-col items-center justify-center h-64 text-gray-500">
+                            <i class="fas fa-image text-6xl mb-4"></i>
+                            <p class="text-lg font-medium">No image selected</p>
+                            <p class="text-sm">Upload images to get started with labeling</p>
+                        </div>
                     </div>
                 </div>
                 
                 <!-- Loading overlay -->
-                <div id="loading-overlay" class="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center hidden">
+                <div id="loading-overlay" class="absolute inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden">
                     <div class="text-center">
                         <div class="spinner mx-auto mb-4"></div>
-                        <p class="text-gray-600">Loading image...</p>
+                        <p class="text-gray-300">Loading image...</p>
                     </div>
                 </div>
             </div>
@@ -119,27 +146,27 @@
 </div>
 
 <!-- Add Category Modal -->
-<div id="add-category-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden items-center justify-center z-50">
-    <div class="bg-white rounded-lg p-6 w-96">
-        <h3 class="text-lg font-semibold text-gray-900 mb-4">Add Label Category</h3>
+<div id="add-category-modal" class="fixed inset-0 bg-gray-900 bg-opacity-75 hidden items-center justify-center z-50">
+    <div class="bg-gray-800 rounded-lg p-6 w-96 border border-gray-700">
+        <h3 class="text-lg font-semibold text-white mb-4">Add Label Category</h3>
         <form id="category-form">
             <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-2">Category Name</label>
+                <label class="block text-sm font-medium text-gray-300 mb-2">Category Name</label>
                 <input type="text" id="category-name" required 
-                       class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                       class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500">
             </div>
             <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700 mb-2">Color</label>
+                <label class="block text-sm font-medium text-gray-300 mb-2">Color</label>
                 <div class="flex items-center space-x-2">
                     <input type="color" id="category-color" value="#3B82F6" 
-                           class="w-12 h-8 border border-gray-300 rounded">
+                           class="w-12 h-8 border border-gray-600 rounded bg-gray-700">
                     <input type="text" id="category-color-text" value="#3B82F6" 
-                           class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                           class="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500">
                 </div>
             </div>
             <div class="flex justify-end space-x-3">
                 <button type="button" id="cancel-category" 
-                        class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200">
+                        class="px-4 py-2 text-sm font-medium text-gray-300 bg-gray-700 rounded-md hover:bg-gray-600">
                     Cancel
                 </button>
                 <button type="submit" 
@@ -169,6 +196,8 @@ const labelCategories = {{ label_categories | tojson }};
 document.addEventListener('DOMContentLoaded', function() {
     if (images.length > 0) {
         loadImage(0);
+    } else {
+        showNoImagePlaceholder();
     }
     
     setupEventListeners();
@@ -179,8 +208,12 @@ function setupEventListeners() {
     // Tool selection
     document.querySelectorAll('.tool-btn').forEach(btn => {
         btn.addEventListener('click', function() {
-            document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active', 'bg-blue-100', 'text-blue-700'));
-            this.classList.add('active', 'bg-blue-100', 'text-blue-700');
+            document.querySelectorAll('.tool-btn').forEach(b => {
+                b.classList.remove('active', 'bg-blue-600', 'text-white', 'bg-blue-100', 'text-blue-700');
+                b.classList.add('text-gray-300', 'hover:bg-gray-700');
+            });
+            this.classList.add('active', 'bg-blue-600', 'text-white');
+            this.classList.remove('text-gray-300', 'hover:bg-gray-700');
             currentTool = this.id.replace('-tool', '');
         });
     });
@@ -188,8 +221,8 @@ function setupEventListeners() {
     // Label category selection
     document.querySelectorAll('.label-category').forEach(cat => {
         cat.addEventListener('click', function() {
-            document.querySelectorAll('.label-category').forEach(c => c.classList.remove('bg-blue-100'));
-            this.classList.add('bg-blue-100');
+            document.querySelectorAll('.label-category').forEach(c => c.classList.remove('bg-blue-600'));
+            this.classList.add('bg-blue-600');
             selectedCategory = parseInt(this.dataset.categoryId);
         });
     });
@@ -200,6 +233,23 @@ function setupEventListeners() {
             loadImage(index);
         });
     });
+
+    // Image upload
+    const imageUpload = document.getElementById('image-upload');
+    const uploadButton = document.getElementById('upload-images');
+    
+    imageUpload.addEventListener('change', function() {
+        const files = this.files;
+        if (files.length > 0) {
+            uploadButton.disabled = false;
+            uploadButton.textContent = `Upload ${files.length} Image${files.length > 1 ? 's' : ''}`;
+        } else {
+            uploadButton.disabled = true;
+            uploadButton.innerHTML = '<i class="fas fa-upload mr-2"></i>Upload Selected Images';
+        }
+    });
+
+    uploadButton.addEventListener('click', uploadImages);
 
     // Canvas events
     const canvas = document.getElementById('annotation-canvas');
@@ -225,21 +275,43 @@ function setupEventListeners() {
 }
 
 function loadImage(index) {
-    if (index < 0 || index >= images.length) return;
+    if (index < 0 || index >= images.length) {
+        // No images available, show placeholder
+        showNoImagePlaceholder();
+        return;
+    }
     
     currentImageIndex = index;
     const image = images[index];
     
     document.getElementById('loading-overlay').classList.remove('hidden');
+    document.getElementById('no-image-placeholder').classList.add('hidden');
     
     const img = document.getElementById('main-image');
-    img.onload = function() {
+    
+    // Add timeout to prevent infinite loading
+    const loadingTimeout = setTimeout(() => {
         document.getElementById('loading-overlay').classList.add('hidden');
+        showNotification('Image loading timed out', 'error');
+    }, 10000); // 10 second timeout
+    
+    // Add error handling for failed image loads
+    img.onerror = function() {
+        clearTimeout(loadingTimeout);
+        document.getElementById('loading-overlay').classList.add('hidden');
+        showNotification('Failed to load image', 'error');
+        console.error('Failed to load image:', image.file_path);
+    };
+    
+    img.onload = function() {
+        clearTimeout(loadingTimeout);
+        document.getElementById('loading-overlay').classList.add('hidden');
+        img.classList.remove('hidden');
         setupCanvas();
         loadImageAnnotations(image.id);
     };
     
-    img.src = `/uploads/${image.file_path}`;
+    img.src = `/${image.file_path}`;
     document.getElementById('current-image').textContent = index + 1;
     
     // Update thumbnail selection
@@ -248,10 +320,21 @@ function loadImage(index) {
     });
 }
 
+function showNoImagePlaceholder() {
+    document.getElementById('main-image').classList.add('hidden');
+    document.getElementById('no-image-placeholder').classList.remove('hidden');
+    document.getElementById('current-image').textContent = '0';
+}
+
 function setupCanvas() {
     const canvas = document.getElementById('annotation-canvas');
     const img = document.getElementById('main-image');
     const container = document.getElementById('image-container');
+    
+    // Only setup canvas if image is visible
+    if (img.classList.contains('hidden')) {
+        return;
+    }
     
     // Set canvas size to match image
     canvas.width = img.offsetWidth;
@@ -373,8 +456,7 @@ function saveAnnotations() {
         return fetch('/api/annotations', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('session_token')}`
+                'Content-Type': 'application/json'
             },
             body: JSON.stringify({
                 image_id: annotation.image_id,
@@ -395,6 +477,49 @@ function saveAnnotations() {
         });
 }
 
+function uploadImages() {
+    const fileInput = document.getElementById('image-upload');
+    const files = fileInput.files;
+    
+    if (files.length === 0) {
+        showNotification('Please select images to upload', 'error');
+        return;
+    }
+    
+    const uploadButton = document.getElementById('upload-images');
+    uploadButton.disabled = true;
+    uploadButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Uploading...';
+    
+    const formData = new FormData();
+    Array.from(files).forEach(file => {
+        formData.append('file', file);
+    });
+    formData.append('dataset_id', {{ dataset.id }});
+    
+    fetch('/api/images/upload', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        showNotification(`${files.length} image(s) uploaded successfully!`, 'success');
+        // Reset upload form
+        fileInput.value = '';
+        uploadButton.disabled = true;
+        uploadButton.innerHTML = '<i class="fas fa-upload mr-2"></i>Upload Selected Images';
+        // Reload page to show new images
+        setTimeout(() => {
+            location.reload();
+        }, 1500); // Small delay to show notification
+    })
+    .catch(error => {
+        console.error('Error uploading images:', error);
+        showNotification('Error uploading images', 'error');
+        uploadButton.disabled = false;
+        uploadButton.innerHTML = '<i class="fas fa-upload mr-2"></i>Upload Selected Images';
+    });
+}
+
 function addCategory(e) {
     e.preventDefault();
     
@@ -404,8 +529,7 @@ function addCategory(e) {
     fetch('/api/label-categories', {
         method: 'POST',
         headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('session_token')}`
+            'Content-Type': 'application/json'
         },
         body: JSON.stringify({
             name: name,
@@ -422,6 +546,43 @@ function addCategory(e) {
         console.error('Error adding category:', error);
         showNotification('Error adding category', 'error');
     });
+}
+
+function showNotification(message, type = 'info') {
+    // Create notification element
+    const notification = document.createElement('div');
+    notification.className = `fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 transition-all duration-300 transform translate-x-full`;
+    
+    // Set colors based on type
+    if (type === 'success') {
+        notification.classList.add('bg-green-500', 'text-white');
+    } else if (type === 'error') {
+        notification.classList.add('bg-red-500', 'text-white');
+    } else {
+        notification.classList.add('bg-blue-500', 'text-white');
+    }
+    
+    notification.innerHTML = `
+        <div class="flex items-center">
+            <i class="fas fa-${type === 'success' ? 'check' : type === 'error' ? 'exclamation' : 'info'}-circle mr-2"></i>
+            <span>${message}</span>
+        </div>
+    `;
+    
+    document.body.appendChild(notification);
+    
+    // Animate in
+    setTimeout(() => {
+        notification.classList.remove('translate-x-full');
+    }, 100);
+    
+    // Auto remove after 3 seconds
+    setTimeout(() => {
+        notification.classList.add('translate-x-full');
+        setTimeout(() => {
+            document.body.removeChild(notification);
+        }, 300);
+    }, 3000);
 }
 </script>
 {% endblock %}

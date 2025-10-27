@@ -9,7 +9,12 @@ from datetime import datetime
 import os
 
 # Database configuration
-DATABASE_URL = "sqlite:///../data/vibecortex.db"
+# Use an absolute path for the database file
+current_dir = os.path.dirname(os.path.abspath(__file__))
+data_dir = os.path.join(current_dir, "..", "data")
+os.makedirs(data_dir, exist_ok=True)  # Ensure the data directory exists
+DATABASE_URL = f"sqlite:///{os.path.join(data_dir, 'vibecortex.db')}"
+
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
