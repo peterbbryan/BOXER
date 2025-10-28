@@ -31,6 +31,18 @@
         </div>
     </div>
 
+    <!-- Context Menu for Annotations -->
+    <div id="annotation-context-menu" class="fixed bg-gray-800 border border-gray-600 rounded-lg shadow-lg z-50 hidden">
+        <div class="py-1">
+            <button id="edit-annotation" class="w-full px-4 py-2 text-left text-sm text-blue-400 hover:bg-gray-700 flex items-center">
+                <i class="fas fa-edit mr-2"></i>Edit Category
+            </button>
+            <button id="delete-annotation" class="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-gray-700 flex items-center">
+                <i class="fas fa-trash mr-2"></i>Delete Annotation
+            </button>
+        </div>
+    </div>
+
     <div class="flex-1 flex">
         <!-- Sidebar -->
         <div class="w-80 bg-gray-800 border-r border-gray-700 flex flex-col">
@@ -249,6 +261,7 @@ let selectedCategory = null;
 let annotations = [];
 let isDrawing = false;
 let startX, startY;
+let selectedAnnotation = null;
 
 const images = {{ images | tojson }};
 const labelCategories = {{ label_categories | tojson }};
@@ -384,6 +397,21 @@ function setupEventListeners() {
                 closeImage();
             }
         }
+        // Delete key to delete selected annotation
+        if (e.key === 'Delete' && selectedAnnotation) {
+            deleteSelectedAnnotation();
+        }
+    });
+
+    // Context menu event listeners
+    document.getElementById('edit-annotation').addEventListener('click', editAnnotation);
+    document.getElementById('delete-annotation').addEventListener('click', deleteSelectedAnnotation);
+
+    // Hide context menu when clicking elsewhere
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('#annotation-context-menu') && !e.target.closest('#annotation-canvas')) {
+            hideAnnotationContextMenu();
+        }
     });
 }
 
@@ -393,6 +421,9 @@ function loadImage(index) {
         showNoImagePlaceholder();
         return;
     }
+
+    // Deselect any selected annotation when switching images
+    deselectAnnotation();
 
     currentImageIndex = index;
     const image = images[index];
@@ -804,12 +835,26 @@ function setupCanvas() {
 }
 
 function startDrawing(e) {
-    if (currentTool === 'select' || !selectedCategory) return;
+    const rect = e.target.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    if (currentTool === 'select') {
+        // Handle annotation selection
+        const clickedAnnotation = getAnnotationAtPoint(x, y);
+        if (clickedAnnotation) {
+            selectAnnotation(clickedAnnotation);
+        } else {
+            deselectAnnotation();
+        }
+        return;
+    }
+
+    if (!selectedCategory) return;
 
     isDrawing = true;
-    const rect = e.target.getBoundingClientRect();
-    startX = e.clientX - rect.left;
-    startY = e.clientY - rect.top;
+    startX = x;
+    startY = y;
 }
 
 function draw(e) {
@@ -874,19 +919,59 @@ function drawExistingAnnotations() {
     annotations.forEach(annotation => {
         if (annotation.image_id !== images[currentImageIndex].id) return;
 
+        const isSelected = selectedAnnotation && selectedAnnotation.id === annotation.id;
+
+        // Draw annotation
         ctx.strokeStyle = getCategoryColor(annotation.label_category_id);
         ctx.fillStyle = getCategoryColor(annotation.label_category_id);
-        ctx.lineWidth = 2;
+        ctx.lineWidth = isSelected ? 3 : 2;
 
         if (annotation.tool === 'bbox') {
             const { startX, startY, endX, endY } = annotation.coordinates;
             ctx.strokeRect(startX, startY, endX - startX, endY - startY);
+
+            // Draw selection handles if selected
+            if (isSelected) {
+                drawSelectionHandles(ctx, startX, startY, endX, endY);
+            }
         } else if (annotation.tool === 'point') {
             const { startX, startY } = annotation.coordinates;
             ctx.beginPath();
-            ctx.arc(startX, startY, 5, 0, 2 * Math.PI);
+            ctx.arc(startX, startY, isSelected ? 7 : 5, 0, 2 * Math.PI);
             ctx.fill();
+
+            // Draw selection ring if selected
+            if (isSelected) {
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(startX, startY, 10, 0, 2 * Math.PI);
+                ctx.stroke();
+            }
         }
+    });
+}
+
+function drawSelectionHandles(ctx, startX, startY, endX, endY) {
+    const handleSize = 6;
+    const handles = [
+        { x: startX, y: startY }, // top-left
+        { x: (startX + endX) / 2, y: startY }, // top-center
+        { x: endX, y: startY }, // top-right
+        { x: endX, y: (startY + endY) / 2 }, // right-center
+        { x: endX, y: endY }, // bottom-right
+        { x: (startX + endX) / 2, y: endY }, // bottom-center
+        { x: startX, y: endY }, // bottom-left
+        { x: startX, y: (startY + endY) / 2 } // left-center
+    ];
+
+    ctx.fillStyle = '#ffffff';
+    ctx.strokeStyle = '#007bff';
+    ctx.lineWidth = 2;
+
+    handles.forEach(handle => {
+        ctx.fillRect(handle.x - handleSize/2, handle.y - handleSize/2, handleSize, handleSize);
+        ctx.strokeRect(handle.x - handleSize/2, handle.y - handleSize/2, handleSize, handleSize);
     });
 }
 
@@ -1054,6 +1139,109 @@ function showNotification(message, type = 'info') {
             document.body.removeChild(notification);
         }, 300);
     }, 3000);
+}
+
+// Annotation selection and editing functions
+function getAnnotationAtPoint(x, y) {
+    const currentImageId = images[currentImageIndex]?.id;
+    if (!currentImageId) return null;
+
+    const imageAnnotations = annotations.filter(ann => ann.image_id === currentImageId);
+
+    // Check annotations in reverse order (topmost first)
+    for (let i = imageAnnotations.length - 1; i >= 0; i--) {
+        const annotation = imageAnnotations[i];
+        if (isPointInAnnotation(x, y, annotation)) {
+            return annotation;
+        }
+    }
+    return null;
+}
+
+function selectAnnotation(annotation) {
+    selectedAnnotation = annotation;
+    drawExistingAnnotations();
+    showAnnotationContextMenu();
+}
+
+function deselectAnnotation() {
+    selectedAnnotation = null;
+    drawExistingAnnotations();
+    hideAnnotationContextMenu();
+}
+
+function showAnnotationContextMenu() {
+    const contextMenu = document.getElementById('annotation-context-menu');
+    if (contextMenu && selectedAnnotation) {
+        // Position the context menu near the selected annotation
+        const canvas = document.getElementById('annotation-canvas');
+        const rect = canvas.getBoundingClientRect();
+
+        // Calculate position based on annotation center
+        const coords = selectedAnnotation.coordinates;
+        const centerX = (coords.startX + coords.endX) / 2;
+        const centerY = (coords.startY + coords.endY) / 2;
+
+        contextMenu.style.left = (rect.left + centerX) + 'px';
+        contextMenu.style.top = (rect.top + centerY) + 'px';
+        contextMenu.classList.remove('hidden');
+    }
+}
+
+function hideAnnotationContextMenu() {
+    const contextMenu = document.getElementById('annotation-context-menu');
+    if (contextMenu) {
+        contextMenu.classList.add('hidden');
+    }
+}
+
+function editAnnotation() {
+    if (!selectedAnnotation) return;
+
+    // For now, just show a simple prompt for editing category
+    const newCategoryName = prompt('Edit annotation category:',
+        labelCategories.find(cat => cat.id === selectedAnnotation.label_category_id)?.name || '');
+
+    if (newCategoryName && newCategoryName.trim()) {
+        const newCategory = labelCategories.find(cat => cat.name.toLowerCase() === newCategoryName.toLowerCase());
+        if (newCategory) {
+            selectedAnnotation.label_category_id = newCategory.id;
+            drawExistingAnnotations();
+            showNotification('Annotation updated!', 'success');
+        } else {
+            showNotification('Category not found!', 'error');
+        }
+    }
+}
+
+function deleteSelectedAnnotation() {
+    if (!selectedAnnotation) return;
+
+    if (confirm('Are you sure you want to delete this annotation?')) {
+        // Remove from local array
+        const index = annotations.findIndex(ann => ann.id === selectedAnnotation.id);
+        if (index !== -1) {
+            annotations.splice(index, 1);
+        }
+
+        // Delete from database if it has a database ID
+        if (selectedAnnotation.id && typeof selectedAnnotation.id === 'number' && selectedAnnotation.id < 1000000000000) {
+            fetch(`/api/annotations/${selectedAnnotation.id}`, {
+                method: 'DELETE'
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Annotation deleted from database:', data);
+            })
+            .catch(error => {
+                console.error('Error deleting annotation from database:', error);
+            });
+        }
+
+        deselectAnnotation();
+        drawExistingAnnotations();
+        showNotification('Annotation deleted!', 'success');
+    }
 }
 </script>
 {% endblock %}
