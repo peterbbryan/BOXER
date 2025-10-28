@@ -890,6 +890,17 @@ function startDrawing(e) {
             polygonPoints = [{ x, y }];
             console.log('Started polygon at:', x, y);
         } else {
+            // Check if clicking near the first point to close polygon
+            if (polygonPoints.length >= 3) {
+                const firstPoint = polygonPoints[0];
+                const distance = Math.sqrt((x - firstPoint.x) ** 2 + (y - firstPoint.y) ** 2);
+                if (distance <= 15) { // 15 pixel radius to close polygon
+                    console.log('Closing polygon by clicking near first point');
+                    completePolygon();
+                    return;
+                }
+            }
+
             // Add point to existing polygon
             polygonPoints.push({ x, y });
             console.log('Added point to polygon:', x, y);
@@ -982,11 +993,28 @@ function drawPolygonPreview() {
 
     // Draw points
     ctx.fillStyle = getCategoryColor(selectedCategory);
-    polygonPoints.forEach(point => {
+    polygonPoints.forEach((point, index) => {
         ctx.beginPath();
-        ctx.arc(point.x, point.y, 3, 0, 2 * Math.PI);
+        if (index === 0) {
+            // Draw first point larger to indicate it's the closing point
+            ctx.arc(point.x, point.y, 5, 0, 2 * Math.PI);
+        } else {
+            ctx.arc(point.x, point.y, 3, 0, 2 * Math.PI);
+        }
         ctx.fill();
     });
+
+    // Draw closing indicator around first point if we have enough points
+    if (polygonPoints.length >= 3) {
+        const firstPoint = polygonPoints[0];
+        ctx.strokeStyle = getCategoryColor(selectedCategory);
+        ctx.lineWidth = 1;
+        ctx.setLineDash([5, 5]); // Dashed line
+        ctx.beginPath();
+        ctx.arc(firstPoint.x, firstPoint.y, 15, 0, 2 * Math.PI);
+        ctx.stroke();
+        ctx.setLineDash([]); // Reset line dash
+    }
 }
 
 function completePolygon() {
