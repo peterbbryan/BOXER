@@ -34,6 +34,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 isScrolling = true;
             }
         });
+    } else {
+        // Navigation not present (e.g., in labeling interface)
+        console.log('Navigation not found - likely in full-screen interface');
     }
 
     // Mobile menu toggle

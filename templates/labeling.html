@@ -2,6 +2,10 @@
 
 {% block title %}{{ title }}{% endblock %}
 
+{% block navigation %}
+<!-- Hide navigation for labeling interface -->
+{% endblock %}
+
 {% block content %}
 <div class="h-screen flex flex-col">
     <!-- Header -->
@@ -18,7 +22,6 @@
                 <input id="project-name-input" type="text" value="{{ project.name }}" 
                        class="text-2xl font-bold text-white bg-transparent border-b-2 border-blue-500 focus:outline-none focus:border-blue-400 hidden"
                        data-project-id="{{ project.id }}">
-                <p class="text-sm text-gray-400">{{ dataset.name }} - Image Labeling</p>
             </div>
             <div class="flex items-center space-x-4">
                 <div class="text-sm text-gray-400">
