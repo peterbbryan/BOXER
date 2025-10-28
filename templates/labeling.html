@@ -151,7 +151,7 @@
 
             <!-- Image Canvas -->
             <div class="flex-1 relative overflow-hidden bg-gray-900">
-                <div id="canvas-container" class="absolute inset-0 flex items-center justify-center">
+                <div id="canvas-container" class="absolute inset-0">
                     <div id="image-container" class="relative">
                         <img id="main-image"
                              src=""
@@ -923,7 +923,7 @@ function saveProjectName() {
 function setupCanvas() {
     const canvas = document.getElementById('annotation-canvas');
     const img = document.getElementById('main-image');
-    const container = document.getElementById('image-container');
+    const canvasContainer = document.getElementById('canvas-container');
 
     // Only setup canvas if image is visible
     if (img.classList.contains('hidden')) {
@@ -931,7 +931,7 @@ function setupCanvas() {
     }
 
     // Set canvas size to match container
-    const containerRect = container.getBoundingClientRect();
+    const containerRect = canvasContainer.getBoundingClientRect();
     canvas.width = containerRect.width;
     canvas.height = containerRect.height;
 
@@ -1590,12 +1590,12 @@ function zoomOut() {
 function fitToScreen() {
     const canvas = document.getElementById('annotation-canvas');
     const img = document.getElementById('main-image');
-    const container = document.getElementById('image-container');
+    const canvasContainer = document.getElementById('canvas-container');
 
     if (!img || img.classList.contains('hidden')) return;
 
-    // Get the visible container dimensions
-    const containerRect = container.getBoundingClientRect();
+    // Get the visible canvas container dimensions
+    const containerRect = canvasContainer.getBoundingClientRect();
     const containerWidth = containerRect.width;
     const containerHeight = containerRect.height;
 
@@ -1608,7 +1608,7 @@ function fitToScreen() {
         const scaleY = containerHeight / imgHeight;
         zoomLevel = Math.min(scaleX, scaleY) * 0.9; // 0.9 for some padding
 
-        // Center the image in the container
+        // Center the image in the canvas container
         const scaledWidth = imgWidth * zoomLevel;
         const scaledHeight = imgHeight * zoomLevel;
         panX = (containerWidth - scaledWidth) / 2;
@@ -1621,12 +1621,12 @@ function fitToScreen() {
 function updateImageTransform() {
     const img = document.getElementById('main-image');
     const canvas = document.getElementById('annotation-canvas');
-    const container = document.getElementById('image-container');
+    const canvasContainer = document.getElementById('canvas-container');
 
     if (!img) return;
 
     // Update canvas size to match container
-    const containerRect = container.getBoundingClientRect();
+    const containerRect = canvasContainer.getBoundingClientRect();
     canvas.width = containerRect.width;
     canvas.height = containerRect.height;
 
