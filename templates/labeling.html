@@ -1602,9 +1602,11 @@ function fitToScreen() {
         const scaleY = canvasHeight / imgHeight;
         zoomLevel = Math.min(scaleX, scaleY) * 0.9; // 0.9 for some padding
 
-        // Center the image
-        panX = (canvasWidth - imgWidth * zoomLevel) / 2;
-        panY = (canvasHeight - imgHeight * zoomLevel) / 2;
+        // Center the image in the canvas
+        const scaledWidth = imgWidth * zoomLevel;
+        const scaledHeight = imgHeight * zoomLevel;
+        panX = (canvasWidth - scaledWidth) / 2;
+        panY = (canvasHeight - scaledHeight) / 2;
 
         updateImageTransform();
     }
