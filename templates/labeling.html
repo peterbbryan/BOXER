@@ -265,6 +265,14 @@ let selectedAnnotation = null;
 let polygonPoints = []; // For polygon drawing
 let isDrawingPolygon = false;
 
+// Zoom and pan variables
+let zoomLevel = 1;
+let panX = 0;
+let panY = 0;
+let isPanning = false;
+let lastPanX = 0;
+let lastPanY = 0;
+
 const images = {{ images | tojson }};
 const labelCategories = {{ label_categories | tojson }};
 
@@ -361,6 +369,62 @@ function setupEventListeners() {
         }
     });
 
+    // Mouse wheel zoom
+    canvas.addEventListener('wheel', function(e) {
+        e.preventDefault();
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+
+        const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
+        const newZoom = Math.max(0.1, Math.min(5, zoomLevel * zoomFactor));
+
+        // Zoom towards mouse position
+        const zoomRatio = newZoom / zoomLevel;
+        panX = mouseX - (mouseX - panX) * zoomRatio;
+        panY = mouseY - (mouseY - panY) * zoomRatio;
+        zoomLevel = newZoom;
+
+        updateImageTransform();
+    });
+
+    // Pan functionality
+    canvas.addEventListener('mousedown', function(e) {
+        if (e.button === 1 || (e.button === 0 && e.ctrlKey)) { // Middle mouse or Ctrl+left click
+            isPanning = true;
+            lastPanX = e.clientX;
+            lastPanY = e.clientY;
+            canvas.style.cursor = 'grabbing';
+            e.preventDefault();
+        }
+    });
+
+    canvas.addEventListener('mousemove', function(e) {
+        if (isPanning) {
+            const deltaX = e.clientX - lastPanX;
+            const deltaY = e.clientY - lastPanY;
+            panX += deltaX;
+            panY += deltaY;
+            lastPanX = e.clientX;
+            lastPanY = e.clientY;
+            updateImageTransform();
+        }
+    });
+
+    canvas.addEventListener('mouseup', function(e) {
+        if (isPanning) {
+            isPanning = false;
+            canvas.style.cursor = 'crosshair';
+        }
+    });
+
+    canvas.addEventListener('mouseleave', function(e) {
+        if (isPanning) {
+            isPanning = false;
+            canvas.style.cursor = 'crosshair';
+        }
+    });
+
 
     // Close image button
     document.getElementById('close-image').addEventListener('click', closeImage);
@@ -430,6 +494,11 @@ function setupEventListeners() {
     document.getElementById('edit-annotation').addEventListener('click', editAnnotation);
     document.getElementById('delete-annotation').addEventListener('click', deleteSelectedAnnotation);
 
+    // Zoom and pan event listeners
+    document.getElementById('zoom-in').addEventListener('click', zoomIn);
+    document.getElementById('zoom-out').addEventListener('click', zoomOut);
+    document.getElementById('fit-to-screen').addEventListener('click', fitToScreen);
+
     // Hide context menu when clicking elsewhere
     document.addEventListener('click', function(e) {
         if (!e.target.closest('#annotation-context-menu') && !e.target.closest('#annotation-canvas')) {
@@ -451,6 +520,11 @@ function loadImage(index) {
     // Reset polygon drawing when switching images
     isDrawingPolygon = false;
     polygonPoints = [];
+
+    // Reset zoom and pan
+    zoomLevel = 1;
+    panX = 0;
+    panY = 0;
 
     currentImageIndex = index;
     const image = images[index];
@@ -863,12 +937,15 @@ function setupCanvas() {
     // Clear canvas
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Update image transform
+    updateImageTransform();
 }
 
 function startDrawing(e) {
     const rect = e.target.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const x = (e.clientX - rect.left - panX) / zoomLevel;
+    const y = (e.clientY - rect.top - panY) / zoomLevel;
 
     if (currentTool === 'select') {
         // Handle annotation selection
@@ -921,8 +998,8 @@ function draw(e) {
     const canvas = document.getElementById('annotation-canvas');
     const ctx = canvas.getContext('2d');
     const rect = e.target.getBoundingClientRect();
-    const currentX = e.clientX - rect.left;
-    const currentY = e.clientY - rect.top;
+    const currentX = (e.clientX - rect.left - panX) / zoomLevel;
+    const currentY = (e.clientY - rect.top - panY) / zoomLevel;
 
     // Clear canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -948,8 +1025,8 @@ function stopDrawing(e) {
 
     isDrawing = false;
     const rect = e.target.getBoundingClientRect();
-    const endX = e.clientX - rect.left;
-    const endY = e.clientY - rect.top;
+    const endX = (e.clientX - rect.left - panX) / zoomLevel;
+    const endY = (e.clientY - rect.top - panY) / zoomLevel;
 
     // Create annotation
     const annotation = {
@@ -1057,9 +1134,13 @@ function drawExistingAnnotations() {
     const canvas = document.getElementById('annotation-canvas');
     const ctx = canvas.getContext('2d');
 
-
     // Clear the canvas first
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Apply zoom and pan transformations
+    ctx.save();
+    ctx.translate(panX, panY);
+    ctx.scale(zoomLevel, zoomLevel);
 
     const currentImageId = images[currentImageIndex]?.id;
 
@@ -1115,6 +1196,9 @@ function drawExistingAnnotations() {
             }
         }
     });
+
+    // Restore canvas state
+    ctx.restore();
 }
 
 function drawSelectionHandles(ctx, startX, startY, endX, endY) {
@@ -1489,6 +1573,52 @@ function deleteSelectedAnnotation() {
         drawExistingAnnotations();
         deselectAnnotation();
     }
+}
+
+// Zoom and pan functions
+function zoomIn() {
+    zoomLevel = Math.min(5, zoomLevel * 1.2);
+    updateImageTransform();
+}
+
+function zoomOut() {
+    zoomLevel = Math.max(0.1, zoomLevel / 1.2);
+    updateImageTransform();
+}
+
+function fitToScreen() {
+    const canvas = document.getElementById('annotation-canvas');
+    const img = document.getElementById('main-image');
+
+    if (!img || img.classList.contains('hidden')) return;
+
+    const canvasWidth = canvas.width;
+    const canvasHeight = canvas.height;
+    const imgWidth = img.naturalWidth;
+    const imgHeight = img.naturalHeight;
+
+    if (imgWidth && imgHeight) {
+        const scaleX = canvasWidth / imgWidth;
+        const scaleY = canvasHeight / imgHeight;
+        zoomLevel = Math.min(scaleX, scaleY) * 0.9; // 0.9 for some padding
+
+        // Center the image
+        panX = (canvasWidth - imgWidth * zoomLevel) / 2;
+        panY = (canvasHeight - imgHeight * zoomLevel) / 2;
+
+        updateImageTransform();
+    }
+}
+
+function updateImageTransform() {
+    const img = document.getElementById('main-image');
+    if (!img) return;
+
+    img.style.transform = `translate(${panX}px, ${panY}px) scale(${zoomLevel})`;
+    img.style.transformOrigin = '0 0';
+
+    // Redraw annotations
+    drawExistingAnnotations();
 }
 </script>
 {% endblock %}
