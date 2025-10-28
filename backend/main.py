@@ -457,5 +457,21 @@ async def get_annotations(image_id: int, db: Session = Depends(get_db)):
     return {"annotations": annotations}
 
 
+@app.delete("/api/annotations/{annotation_id}")
+async def delete_annotation(annotation_id: int, db: Session = Depends(get_db)):
+    """Delete an annotation"""
+    # Find the annotation
+    annotation = db.query(Annotation).filter(Annotation.id == annotation_id).first()
+
+    if not annotation:
+        raise HTTPException(status_code=404, detail="Annotation not found")
+
+    # Delete the annotation
+    db.delete(annotation)
+    db.commit()
+
+    return {"message": "Annotation deleted successfully"}
+
+
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True, log_level="info")
