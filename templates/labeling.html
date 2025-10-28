@@ -262,6 +262,8 @@ let annotations = [];
 let isDrawing = false;
 let startX, startY;
 let selectedAnnotation = null;
+let polygonPoints = []; // For polygon drawing
+let isDrawingPolygon = false;
 
 const images = {{ images | tojson }};
 const labelCategories = {{ label_categories | tojson }};
@@ -289,6 +291,13 @@ function setupEventListeners() {
             this.classList.add('active', 'bg-blue-600', 'text-white');
             this.classList.remove('text-gray-300', 'hover:bg-gray-700');
             currentTool = this.id.replace('-tool', '');
+
+            // Reset polygon drawing when switching tools
+            if (currentTool !== 'polygon') {
+                isDrawingPolygon = false;
+                polygonPoints = [];
+                drawExistingAnnotations();
+            }
         });
     });
 
@@ -347,6 +356,11 @@ function setupEventListeners() {
     canvas.addEventListener('mousedown', startDrawing);
     canvas.addEventListener('mousemove', draw);
     canvas.addEventListener('mouseup', stopDrawing);
+    canvas.addEventListener('dblclick', function(e) {
+        if (currentTool === 'polygon' && isDrawingPolygon) {
+            completePolygon();
+        }
+    });
 
 
     // Close image button
@@ -401,6 +415,16 @@ function setupEventListeners() {
         if (e.key === 'Delete' && selectedAnnotation) {
             deleteSelectedAnnotation();
         }
+        // Enter key to complete polygon
+        if (e.key === 'Enter' && currentTool === 'polygon' && isDrawingPolygon) {
+            completePolygon();
+        }
+        // Escape key to cancel polygon
+        if (e.key === 'Escape' && currentTool === 'polygon' && isDrawingPolygon) {
+            isDrawingPolygon = false;
+            polygonPoints = [];
+            drawExistingAnnotations();
+        }
     });
 
     // Context menu event listeners
@@ -424,6 +448,10 @@ function loadImage(index) {
 
     // Deselect any selected annotation when switching images
     deselectAnnotation();
+
+    // Reset polygon drawing when switching images
+    isDrawingPolygon = false;
+    polygonPoints = [];
 
     currentImageIndex = index;
     const image = images[index];
@@ -854,6 +882,22 @@ function startDrawing(e) {
 
     if (!selectedCategory) return;
 
+    if (currentTool === 'polygon') {
+        // Handle polygon drawing
+        if (!isDrawingPolygon) {
+            // Start new polygon
+            isDrawingPolygon = true;
+            polygonPoints = [{ x, y }];
+            console.log('Started polygon at:', x, y);
+        } else {
+            // Add point to existing polygon
+            polygonPoints.push({ x, y });
+            console.log('Added point to polygon:', x, y);
+            drawPolygonPreview();
+        }
+        return;
+    }
+
     isDrawing = true;
     startX = x;
     startY = y;
@@ -914,6 +958,68 @@ function stopDrawing(e) {
     saveAnnotationToDatabase(annotation);
 }
 
+function drawPolygonPreview() {
+    const canvas = document.getElementById('annotation-canvas');
+    const ctx = canvas.getContext('2d');
+
+    // Clear canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Draw existing annotations
+    drawExistingAnnotations();
+
+    // Draw polygon preview
+    if (polygonPoints.length > 1) {
+        ctx.strokeStyle = getCategoryColor(selectedCategory);
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(polygonPoints[0].x, polygonPoints[0].y);
+        for (let i = 1; i < polygonPoints.length; i++) {
+            ctx.lineTo(polygonPoints[i].x, polygonPoints[i].y);
+        }
+        ctx.stroke();
+    }
+
+    // Draw points
+    ctx.fillStyle = getCategoryColor(selectedCategory);
+    polygonPoints.forEach(point => {
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, 3, 0, 2 * Math.PI);
+        ctx.fill();
+    });
+}
+
+function completePolygon() {
+    if (polygonPoints.length < 3) {
+        console.log('Polygon needs at least 3 points');
+        return;
+    }
+
+    // Create polygon annotation
+    const annotation = {
+        id: Date.now(),
+        image_id: images[currentImageIndex].id,
+        label_category_id: selectedCategory,
+        tool: 'polygon',
+        coordinates: {
+            points: polygonPoints
+        },
+        created_at: new Date().toISOString()
+    };
+
+    annotations.push(annotation);
+    drawExistingAnnotations();
+
+    // Automatically save the annotation to the database
+    saveAnnotationToDatabase(annotation);
+
+    // Reset polygon drawing
+    isDrawingPolygon = false;
+    polygonPoints = [];
+
+    console.log('Polygon completed');
+}
+
 function drawExistingAnnotations() {
     const canvas = document.getElementById('annotation-canvas');
     const ctx = canvas.getContext('2d');
@@ -957,6 +1063,24 @@ function drawExistingAnnotations() {
                 ctx.beginPath();
                 ctx.arc(startX, startY, 10, 0, 2 * Math.PI);
                 ctx.stroke();
+            }
+        } else if (annotation.tool === 'polygon') {
+            const { points } = annotation.coordinates;
+            if (points && points.length > 2) {
+                ctx.beginPath();
+                ctx.moveTo(points[0].x, points[0].y);
+                for (let i = 1; i < points.length; i++) {
+                    ctx.lineTo(points[i].x, points[i].y);
+                }
+                ctx.closePath();
+                ctx.stroke();
+
+                // Draw points
+                points.forEach(point => {
+                    ctx.beginPath();
+                    ctx.arc(point.x, point.y, 3, 0, 2 * Math.PI);
+                    ctx.fill();
+                });
             }
         }
     });
@@ -1181,6 +1305,19 @@ function isPointInAnnotation(x, y, annotation) {
         const { startX, startY } = annotation.coordinates;
         const distance = Math.sqrt((x - startX) ** 2 + (y - startY) ** 2);
         return distance <= 10; // 10 pixel radius for point selection
+    } else if (annotation.tool === 'polygon') {
+        const { points } = annotation.coordinates;
+        if (!points || points.length < 3) return false;
+
+        // Use ray casting algorithm for point-in-polygon test
+        let inside = false;
+        for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+            if ((points[i].y > y) !== (points[j].y > y) &&
+                x < (points[j].x - points[i].x) * (y - points[i].y) / (points[j].y - points[i].y) + points[i].x) {
+                inside = !inside;
+            }
+        }
+        return inside;
     }
     return false;
 }
