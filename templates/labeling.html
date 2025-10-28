@@ -889,6 +889,7 @@ function startDrawing(e) {
             isDrawingPolygon = true;
             polygonPoints = [{ x, y }];
             console.log('Started polygon at:', x, y);
+            drawPolygonPreview(); // Draw the first point immediately
         } else {
             // Check if clicking near the first point to close polygon
             if (polygonPoints.length >= 3) {
@@ -991,17 +992,22 @@ function drawPolygonPreview() {
         ctx.stroke();
     }
 
-    // Draw points
+    // Always draw the first point, even with just one point
+    if (polygonPoints.length >= 1) {
+        ctx.fillStyle = getCategoryColor(selectedCategory);
+        ctx.beginPath();
+        ctx.arc(polygonPoints[0].x, polygonPoints[0].y, 5, 0, 2 * Math.PI);
+        ctx.fill();
+    }
+
+    // Draw additional points (skip first point since it's already drawn)
     ctx.fillStyle = getCategoryColor(selectedCategory);
     polygonPoints.forEach((point, index) => {
-        ctx.beginPath();
-        if (index === 0) {
-            // Draw first point larger to indicate it's the closing point
-            ctx.arc(point.x, point.y, 5, 0, 2 * Math.PI);
-        } else {
+        if (index > 0) { // Skip first point since it's already drawn above
+            ctx.beginPath();
             ctx.arc(point.x, point.y, 3, 0, 2 * Math.PI);
+            ctx.fill();
         }
-        ctx.fill();
     });
 
     // Draw closing indicator around first point if we have enough points
