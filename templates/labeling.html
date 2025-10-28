@@ -27,9 +27,6 @@
                 <div class="text-sm text-gray-400">
                     <span id="current-image">1</span> of <span id="total-images">{{ images|length }}</span>
                 </div>
-                <button id="save-annotations" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
-                    <i class="fas fa-save mr-2"></i>Save
-                </button>
             </div>
         </div>
     </div>
@@ -338,8 +335,6 @@ function setupEventListeners() {
     canvas.addEventListener('mousemove', draw);
     canvas.addEventListener('mouseup', stopDrawing);
 
-    // Save button
-    document.getElementById('save-annotations').addEventListener('click', saveAnnotations);
 
     // Close image button
     document.getElementById('close-image').addEventListener('click', closeImage);
@@ -867,7 +862,7 @@ function stopDrawing(e) {
 
     annotations.push(annotation);
     drawExistingAnnotations();
-    
+
     // Automatically save the annotation to the database
     saveAnnotationToDatabase(annotation);
 }
@@ -914,11 +909,11 @@ function loadImageAnnotations(imageId) {
                 coordinates: dbAnnotation.annotation_data,
                 created_at: dbAnnotation.created_at
             }));
-            
+
             // Replace annotations for this image
             annotations = annotations.filter(ann => ann.image_id !== imageId);
             annotations = annotations.concat(loadedAnnotations);
-            
+
             drawExistingAnnotations();
         })
         .catch(error => {
@@ -952,35 +947,6 @@ function saveAnnotationToDatabase(annotation) {
     });
 }
 
-function saveAnnotations() {
-    const imageId = images[currentImageIndex].id;
-    const imageAnnotations = annotations.filter(ann => ann.image_id === imageId);
-
-    // Save each annotation
-    const savePromises = imageAnnotations.map(annotation => {
-        return fetch('/api/annotations', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                image_id: annotation.image_id,
-                label_category_id: annotation.label_category_id,
-                annotation_data: annotation.coordinates,
-                confidence: 1.0
-            })
-        });
-    });
-
-    Promise.all(savePromises)
-        .then(() => {
-            showNotification('Annotations saved successfully!', 'success');
-        })
-        .catch(error => {
-            console.error('Error saving annotations:', error);
-            showNotification('Error saving annotations', 'error');
-        });
-}
 
 function uploadImages() {
     const fileInput = document.getElementById('image-upload');
