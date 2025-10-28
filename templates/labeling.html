@@ -480,7 +480,11 @@ function loadImage(index) {
         document.getElementById('loading-overlay').classList.add('hidden');
         img.classList.remove('hidden');
         setupCanvas();
-        loadImageAnnotations(image.id);
+
+        // Load annotations after canvas is set up
+        setTimeout(() => {
+            loadImageAnnotations(image.id);
+        }, 100); // Small delay to ensure canvas is ready
 
         // Enable close and delete buttons when image is loaded
         document.getElementById('close-image').disabled = false;
@@ -1057,6 +1061,9 @@ function completePolygon() {
 function drawExistingAnnotations() {
     const canvas = document.getElementById('annotation-canvas');
     const ctx = canvas.getContext('2d');
+
+    console.log('Drawing existing annotations, count:', annotations.length);
+    console.log('Canvas size:', canvas.width, 'x', canvas.height);
 
     // Clear the canvas first
     ctx.clearRect(0, 0, canvas.width, canvas.height);
