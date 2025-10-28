@@ -285,8 +285,11 @@ function setupEventListeners() {
     // Label category selection
     document.querySelectorAll('.label-category').forEach(cat => {
         cat.addEventListener('click', function() {
+            // Remove selection from all categories
             document.querySelectorAll('.label-category').forEach(c => c.classList.remove('bg-blue-600'));
+            // Add selection to clicked category
             this.classList.add('bg-blue-600');
+            // Set selected category
             selectedCategory = parseInt(this.dataset.categoryId);
         });
     });

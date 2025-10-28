@@ -152,7 +152,6 @@ async def read_root(request: Request) -> HTMLResponse:
                     ),
                 }
             )
-
         label_categories_data = []
         for cat in label_categories:
             label_categories_data.append(
@@ -165,7 +164,6 @@ async def read_root(request: Request) -> HTMLResponse:
                     ),
                 }
             )
-
         return templates.TemplateResponse(
             "labeling.html",
             {
@@ -186,6 +184,33 @@ async def read_root(request: Request) -> HTMLResponse:
 async def health_check() -> Dict[str, str]:
     """Health check endpoint"""
     return {"status": "healthy", "message": "VibeCortex Data Labeling Tool is running!"}
+
+
+@app.get("/api/debug/image/{image_id}")
+async def debug_image(image_id: int, db: Session = Depends(get_db)):
+    """Debug endpoint to check image details"""
+    image = db.query(Image).filter(Image.id == image_id).first()
+    if not image:
+        return {"error": "Image not found"}
+
+    # Check if file exists
+    # Try both relative and absolute paths
+    relative_path = image.file_path
+    absolute_path = os.path.abspath(image.file_path)
+    file_exists_relative = os.path.exists(relative_path)
+    file_exists_absolute = os.path.exists(absolute_path)
+
+    return {
+        "image_id": image.id,
+        "filename": image.filename,
+        "file_path": image.file_path,
+        "file_exists_relative": file_exists_relative,
+        "file_exists_absolute": file_exists_absolute,
+        "absolute_path": absolute_path,
+        "file_size": image.file_size,
+        "width": image.width,
+        "height": image.height,
+    }
 
 
 # Project endpoints

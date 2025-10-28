@@ -1,6 +1,6 @@
 [MASTER]
 max-line-length=88
-init-hook='import sys; sys.path.append(".")'
+init-hook='import sys; sys.path.append("."); sys.path.append("./backend")'
 disable=
     C0114,  # missing-module-docstring
     C0116,  # missing-function-docstring
