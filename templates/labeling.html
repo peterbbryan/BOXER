@@ -918,8 +918,16 @@ function drawExistingAnnotations() {
     const canvas = document.getElementById('annotation-canvas');
     const ctx = canvas.getContext('2d');
 
+    // Clear the canvas first
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const currentImageId = images[currentImageIndex]?.id;
+    console.log('Drawing annotations for image ID:', currentImageId);
+    console.log('Total annotations:', annotations.length);
+    console.log('Annotations:', annotations);
+
     annotations.forEach(annotation => {
-        if (annotation.image_id !== images[currentImageIndex].id) return;
+        if (annotation.image_id !== currentImageId) return;
 
         const isSelected = selectedAnnotation && selectedAnnotation.id === annotation.id;
 
@@ -1300,6 +1308,13 @@ function deleteSelectedAnnotation() {
         }
 
         deselectAnnotation();
+        console.log('Annotations array after deletion:', annotations);
+
+        // Force canvas redraw
+        const canvas = document.getElementById('annotation-canvas');
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
         drawExistingAnnotations();
     }
 }
