@@ -864,6 +864,9 @@ function stopDrawing(e) {
 
     annotations.push(annotation);
     drawExistingAnnotations();
+    
+    // Automatically save the annotation to the database
+    saveAnnotationToDatabase(annotation);
 }
 
 function drawExistingAnnotations() {
@@ -899,12 +902,51 @@ function loadImageAnnotations(imageId) {
     fetch(`/api/annotations/${imageId}`)
         .then(response => response.json())
         .then(data => {
-            annotations = data.annotations || [];
+            // Convert database annotations to frontend format
+            const loadedAnnotations = (data.annotations || []).map(dbAnnotation => ({
+                id: dbAnnotation.id,
+                image_id: dbAnnotation.image_id,
+                label_category_id: dbAnnotation.label_category_id,
+                tool: 'bbox', // Default tool, could be stored in annotation_data
+                coordinates: dbAnnotation.annotation_data,
+                created_at: dbAnnotation.created_at
+            }));
+            
+            // Replace annotations for this image
+            annotations = annotations.filter(ann => ann.image_id !== imageId);
+            annotations = annotations.concat(loadedAnnotations);
+            
             drawExistingAnnotations();
         })
         .catch(error => {
             console.error('Error loading annotations:', error);
         });
+}
+
+function saveAnnotationToDatabase(annotation) {
+    // Save a single annotation to the database
+    fetch('/api/annotations', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            image_id: annotation.image_id,
+            label_category_id: annotation.label_category_id,
+            annotation_data: annotation.coordinates,
+            confidence: 1.0
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        // Update the annotation with the database ID
+        annotation.id = data.annotation_id;
+        console.log('Annotation saved to database:', data);
+    })
+    .catch(error => {
+        console.error('Error saving annotation:', error);
+        showNotification('Error saving annotation', 'error');
+    });
 }
 
 function saveAnnotations() {

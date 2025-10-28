@@ -97,8 +97,8 @@ async def read_root(request: Request) -> HTMLResponse:
     # Get or create a default project and dataset
     db = next(get_db())
     try:
-        # Get or create default project
-        project = db.query(Project).filter(Project.name == "Default Project").first()
+        # Get the most recent project or create a default one
+        project = db.query(Project).order_by(Project.updated_at.desc()).first()
         if not project:
             project = Project(
                 name="Default Project",
