@@ -1284,8 +1284,8 @@ function deleteSelectedAnnotation() {
             console.log('Annotation not found in local array');
         }
 
-        // Delete from database if it has a database ID
-        if (selectedAnnotation.id && typeof selectedAnnotation.id === 'number' && selectedAnnotation.id < 1000000000000) {
+        // Delete from database if it has a database ID (small numbers are database IDs, large numbers are temporary IDs)
+        if (selectedAnnotation.id && typeof selectedAnnotation.id === 'number' && selectedAnnotation.id < 1000000) {
             console.log('Deleting from database, ID:', selectedAnnotation.id);
             fetch(`/api/annotations/${selectedAnnotation.id}`, {
                 method: 'DELETE'
@@ -1307,7 +1307,6 @@ function deleteSelectedAnnotation() {
             showNotification('Annotation deleted!', 'success');
         }
 
-        deselectAnnotation();
         console.log('Annotations array after deletion:', annotations);
 
         // Force canvas redraw
@@ -1316,6 +1315,7 @@ function deleteSelectedAnnotation() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
         drawExistingAnnotations();
+        deselectAnnotation();
     }
 }
 </script>
