@@ -32,7 +32,7 @@
     </div>
 
     <!-- Context Menu for Annotations -->
-    <div id="annotation-context-menu" class="fixed bg-gray-800 border border-gray-600 rounded-lg shadow-lg z-50 hidden">
+    <div id="annotation-context-menu" class="fixed bg-gray-800 border border-gray-600 rounded-lg shadow-lg z-50 hidden" style="min-width: 200px;">
         <div class="py-1">
             <button id="edit-annotation" class="w-full px-4 py-2 text-left text-sm text-blue-400 hover:bg-gray-700 flex items-center">
                 <i class="fas fa-edit mr-2"></i>Edit Category
@@ -841,7 +841,9 @@ function startDrawing(e) {
 
     if (currentTool === 'select') {
         // Handle annotation selection
+        console.log('Select tool clicked at:', x, y);
         const clickedAnnotation = getAnnotationAtPoint(x, y);
+        console.log('Found annotation:', clickedAnnotation);
         if (clickedAnnotation) {
             selectAnnotation(clickedAnnotation);
         } else {
@@ -1158,7 +1160,25 @@ function getAnnotationAtPoint(x, y) {
     return null;
 }
 
+function isPointInAnnotation(x, y, annotation) {
+    if (annotation.tool === 'bbox') {
+        const { startX, startY, endX, endY } = annotation.coordinates;
+        const minX = Math.min(startX, endX);
+        const maxX = Math.max(startX, endX);
+        const minY = Math.min(startY, endY);
+        const maxY = Math.max(startY, endY);
+
+        return x >= minX && x <= maxX && y >= minY && y <= maxY;
+    } else if (annotation.tool === 'point') {
+        const { startX, startY } = annotation.coordinates;
+        const distance = Math.sqrt((x - startX) ** 2 + (y - startY) ** 2);
+        return distance <= 10; // 10 pixel radius for point selection
+    }
+    return false;
+}
+
 function selectAnnotation(annotation) {
+    console.log('Selecting annotation:', annotation);
     selectedAnnotation = annotation;
     drawExistingAnnotations();
     showAnnotationContextMenu();
@@ -1182,9 +1202,33 @@ function showAnnotationContextMenu() {
         const centerX = (coords.startX + coords.endX) / 2;
         const centerY = (coords.startY + coords.endY) / 2;
 
-        contextMenu.style.left = (rect.left + centerX) + 'px';
-        contextMenu.style.top = (rect.top + centerY) + 'px';
+        // Position relative to viewport
+        const x = rect.left + centerX;
+        const y = rect.top + centerY;
+
+        // Ensure menu stays within viewport
+        const menuWidth = 200; // Approximate menu width
+        const menuHeight = 100; // Approximate menu height
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+
+        let finalX = x;
+        let finalY = y;
+
+        if (x + menuWidth > viewportWidth) {
+            finalX = viewportWidth - menuWidth - 10;
+        }
+        if (y + menuHeight > viewportHeight) {
+            finalY = viewportHeight - menuHeight - 10;
+        }
+
+        contextMenu.style.left = finalX + 'px';
+        contextMenu.style.top = finalY + 'px';
+        contextMenu.style.position = 'fixed';
+        contextMenu.style.zIndex = '9999';
         contextMenu.classList.remove('hidden');
+
+        console.log('Context menu shown at:', finalX, finalY);
     }
 }
 
