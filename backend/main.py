@@ -4,7 +4,7 @@ VibeCortex Backend - Multi-User Data Labeling Tool
 
 import os
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 import uvicorn
 from fastapi import Depends, FastAPI, Form, HTTPException, Request, UploadFile, File
@@ -16,7 +16,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 # Import our modules
-from backend.database import (
+from database import (
     Annotation,
     Dataset,
     Image,
@@ -25,7 +25,7 @@ from backend.database import (
     get_db,
     init_database,
 )
-from backend.image_utils import process_uploaded_image, validate_image
+from image_utils import process_uploaded_image, validate_image
 
 # Create FastAPI app
 app = FastAPI(
@@ -208,7 +208,7 @@ async def create_project(
 
 
 @app.get("/api/projects")
-async def get_projects(db: Session = Depends(get_db)) -> Dict[str, List[Project]]:
+async def get_projects(db: Session = Depends(get_db)):
     """Get all projects"""
     projects = db.query(Project).all()
     return {"projects": projects}
