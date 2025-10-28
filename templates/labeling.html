@@ -277,7 +277,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     setupEventListeners();
-    loadAnnotations();
 });
 
 function setupEventListeners() {
@@ -892,7 +891,6 @@ function startDrawing(e) {
             // Start new polygon
             isDrawingPolygon = true;
             polygonPoints = [{ x, y }];
-            console.log('Started polygon at:', x, y);
             drawPolygonPreview(); // Draw the first point immediately
         } else {
             // Check if clicking near the first point to close polygon
@@ -900,7 +898,6 @@ function startDrawing(e) {
                 const firstPoint = polygonPoints[0];
                 const distance = Math.sqrt((x - firstPoint.x) ** 2 + (y - firstPoint.y) ** 2);
                 if (distance <= 15) { // 15 pixel radius to close polygon
-                    console.log('Closing polygon by clicking near first point');
                     completePolygon();
                     return;
                 }
@@ -908,7 +905,6 @@ function startDrawing(e) {
 
             // Add point to existing polygon
             polygonPoints.push({ x, y });
-            console.log('Added point to polygon:', x, y);
             drawPolygonPreview();
         }
         return;
@@ -1055,23 +1051,17 @@ function completePolygon() {
     isDrawingPolygon = false;
     polygonPoints = [];
 
-    console.log('Polygon completed');
 }
 
 function drawExistingAnnotations() {
     const canvas = document.getElementById('annotation-canvas');
     const ctx = canvas.getContext('2d');
 
-    console.log('Drawing existing annotations, count:', annotations.length);
-    console.log('Canvas size:', canvas.width, 'x', canvas.height);
 
     // Clear the canvas first
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     const currentImageId = images[currentImageIndex]?.id;
-    console.log('Drawing annotations for image ID:', currentImageId);
-    console.log('Total annotations:', annotations.length);
-    console.log('Annotations:', annotations);
 
     annotations.forEach(annotation => {
         if (annotation.image_id !== currentImageId) return;
@@ -1190,7 +1180,6 @@ function loadImageAnnotations(imageId) {
             annotations = annotations.filter(ann => ann.image_id !== imageId);
             annotations = annotations.concat(loadedAnnotations);
 
-            console.log(`Loaded ${loadedAnnotations.length} annotations for image ${imageId}:`, loadedAnnotations);
             drawExistingAnnotations();
         })
         .catch(error => {
@@ -1216,7 +1205,6 @@ function saveAnnotationToDatabase(annotation) {
     .then(data => {
         // Update the annotation with the database ID
         annotation.id = data.annotation_id;
-        console.log('Annotation saved to database:', data);
     })
     .catch(error => {
         console.error('Error saving annotation:', error);
@@ -1381,7 +1369,6 @@ function isPointInAnnotation(x, y, annotation) {
 }
 
 function selectAnnotation(annotation) {
-    console.log('Selecting annotation:', annotation);
     selectedAnnotation = annotation;
     drawExistingAnnotations();
     showAnnotationContextMenu();
@@ -1463,34 +1450,26 @@ function editAnnotation() {
 
 function deleteSelectedAnnotation() {
     if (!selectedAnnotation) {
-        console.log('No annotation selected');
         return;
     }
 
     if (confirm('Are you sure you want to delete this annotation?')) {
-        console.log('Deleting annotation:', selectedAnnotation);
 
         // Remove from local array
         const index = annotations.findIndex(ann => ann.id === selectedAnnotation.id);
         if (index !== -1) {
             annotations.splice(index, 1);
-            console.log('Removed from local array, index:', index);
-        } else {
-            console.log('Annotation not found in local array');
         }
 
         // Delete from database if it has a database ID (small numbers are database IDs, large numbers are temporary IDs)
         if (selectedAnnotation.id && typeof selectedAnnotation.id === 'number' && selectedAnnotation.id < 1000000) {
-            console.log('Deleting from database, ID:', selectedAnnotation.id);
             fetch(`/api/annotations/${selectedAnnotation.id}`, {
                 method: 'DELETE'
             })
             .then(response => {
-                console.log('Delete response status:', response.status);
                 return response.json();
             })
             .then(data => {
-                console.log('Annotation deleted from database:', data);
                 showNotification('Annotation deleted!', 'success');
             })
             .catch(error => {
@@ -1498,11 +1477,9 @@ function deleteSelectedAnnotation() {
                 showNotification('Error deleting annotation', 'error');
             });
         } else {
-            console.log('Annotation has no database ID, skipping database delete');
             showNotification('Annotation deleted!', 'success');
         }
 
-        console.log('Annotations array after deletion:', annotations);
 
         // Force canvas redraw
         const canvas = document.getElementById('annotation-canvas');

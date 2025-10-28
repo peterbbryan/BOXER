@@ -130,33 +130,6 @@ def process_uploaded_image(file_path: str, original_filename: str) -> Dict[str, 
     }
 
 
-def resize_image_for_display(
-    image_path: str, max_width: int = 1200, max_height: int = 800
-) -> str:
-    """Resize image for display while maintaining aspect ratio"""
-    try:
-        with PILImage.open(image_path) as img:
-            # Calculate new size maintaining aspect ratio
-            ratio = min(max_width / img.width, max_height / img.height)
-            new_width = int(img.width * ratio)
-            new_height = int(img.height * ratio)
-
-            # Resize image
-            resized_img = img.resize(
-                (new_width, new_height), PILImage.Resampling.LANCZOS
-            )
-
-            # Save resized image
-            resized_path = image_path.replace("uploads/images", "uploads/display")
-            os.makedirs(os.path.dirname(resized_path), exist_ok=True)
-            resized_img.save(resized_path, "JPEG", quality=90)
-
-            return resized_path
-    except (OSError, IOError) as e:
-        print(f"Error resizing image: {e}")
-        return image_path
-
-
 def get_supported_formats() -> List[str]:
     """Get list of supported image formats"""
     return [".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".webp", ".gif"]
