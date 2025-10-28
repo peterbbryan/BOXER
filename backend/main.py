@@ -58,6 +58,9 @@ class ProjectCreate(BaseModel):
     description: Optional[str] = None
     is_public: bool = False
 
+class ProjectUpdate(BaseModel):
+    name: str
+
 class DatasetCreate(BaseModel):
     name: str
     description: Optional[str] = None
@@ -181,6 +184,28 @@ async def get_projects(db: Session = Depends(get_db)):
     projects = db.query(Project).all()
     return {"projects": projects}
 
+@app.put("/api/projects/{project_id}")
+async def update_project(
+    project_id: int,
+    project_data: ProjectUpdate,
+    db: Session = Depends(get_db)
+):
+    """Update a project name"""
+    # Find the project
+    project = db.query(Project).filter(Project.id == project_id).first()
+    
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    # Update project name
+    project.name = project_data.name
+    project.updated_at = datetime.utcnow()
+    
+    db.commit()
+    db.refresh(project)
+    
+    return {"message": "Project updated successfully", "project": project}
+
 # Dataset endpoints
 @app.post("/api/datasets")
 async def create_dataset(
@@ -263,6 +288,51 @@ async def upload_image(
         if os.path.exists(temp_path):
             os.remove(temp_path)
         raise HTTPException(status_code=500, detail=f"Error processing image: {str(e)}")
+
+# Image delete endpoint
+@app.delete("/api/images/{image_id}")
+async def delete_image(
+    image_id: int,
+    db: Session = Depends(get_db)
+):
+    """Delete an image and its associated files"""
+    # Find the image
+    image = db.query(Image).filter(Image.id == image_id).first()
+    
+    if not image:
+        raise HTTPException(status_code=404, detail="Image not found")
+    
+    try:
+        # Delete associated annotations first (due to foreign key constraints)
+        db.query(Annotation).filter(Annotation.image_id == image_id).delete()
+        
+        # Delete the image record
+        db.delete(image)
+        db.commit()
+        
+        # Delete the actual files
+        import os
+        from pathlib import Path
+        
+        # Get absolute paths
+        backend_dir = os.path.dirname(os.path.abspath(__file__))
+        project_root = os.path.dirname(backend_dir)
+        
+        # Delete main image file
+        main_image_path = os.path.join(project_root, image.file_path)
+        if os.path.exists(main_image_path):
+            os.remove(main_image_path)
+        
+        # Delete thumbnail file
+        thumbnail_path = os.path.join(project_root, image.thumbnail_path)
+        if os.path.exists(thumbnail_path):
+            os.remove(thumbnail_path)
+        
+        return {"message": "Image deleted successfully", "image_id": image_id}
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error deleting image: {str(e)}")
 
 # Label category endpoints
 @app.post("/api/label-categories")
