@@ -1,0 +1,27 @@
+[MASTER]
+max-line-length=88
+init-hook='import sys; sys.path.append(".")'
+disable=
+    C0114,  # missing-module-docstring
+    C0116,  # missing-function-docstring
+    R0903,  # too-few-public-methods
+    W0613,  # unused-argument
+    C0103,  # invalid-name
+
+[MESSAGES CONTROL]
+disable=
+    missing-docstring,
+    too-few-public-methods,
+    unused-argument,
+    invalid-name
+
+[FORMAT]
+max-line-length=88
+indent-string='    '
+
+[DESIGN]
+max-args=7
+max-locals=15
+max-returns=6
+max-branches=12
+max-statements=50

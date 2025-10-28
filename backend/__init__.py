@@ -1,1 +1,3 @@
-# Backend package
+"""
+VibeCortex Backend Package
+"""

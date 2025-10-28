@@ -26,12 +26,16 @@ if __name__ == "__main__":
     print("🌐 Server: http://localhost:8000")
     print("📚 API Docs: http://localhost:8000/api/docs")
     print("=" * 50)
-    
+
     uvicorn.run(
         "main:app",
         host="0.0.0.0",
         port=8000,
         reload=True,
         log_level="info",
-        reload_dirs=[str(backend_dir), str(project_root / "templates"), str(project_root / "static")]
+        reload_dirs=[
+            str(backend_dir),
+            str(project_root / "templates"),
+            str(project_root / "static"),
+        ],
     )

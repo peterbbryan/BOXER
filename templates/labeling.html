@@ -13,13 +13,13 @@
         <div class="flex items-center justify-between">
             <div>
                 <div class="flex items-center space-x-2">
-                    <h1 id="project-name-display" class="text-2xl font-bold text-white cursor-pointer hover:text-blue-300 transition-colors" 
+                    <h1 id="project-name-display" class="text-2xl font-bold text-white cursor-pointer hover:text-blue-300 transition-colors"
                         data-project-id="{{ project.id }}">{{ project.name }}</h1>
                     <button id="edit-project-name" class="text-gray-400 hover:text-blue-400 transition-colors" title="Edit project name">
                         <i class="fas fa-edit text-sm"></i>
                     </button>
                 </div>
-                <input id="project-name-input" type="text" value="{{ project.name }}" 
+                <input id="project-name-input" type="text" value="{{ project.name }}"
                        class="text-2xl font-bold text-white bg-transparent border-b-2 border-blue-500 focus:outline-none focus:border-blue-400 hidden"
                        data-project-id="{{ project.id }}">
             </div>
@@ -42,8 +42,8 @@
                 <h3 class="text-lg font-semibold text-white mb-3">Label Categories</h3>
                 <div class="space-y-2">
                     {% for category in label_categories %}
-                    <div class="label-category flex items-center p-2 rounded-lg cursor-pointer hover:bg-gray-700 transition-colors" 
-                         data-category-id="{{ category.id }}" 
+                    <div class="label-category flex items-center p-2 rounded-lg cursor-pointer hover:bg-gray-700 transition-colors"
+                         data-category-id="{{ category.id }}"
                          data-color="{{ category.color }}">
                         <div class="w-4 h-4 rounded-full mr-3" style="background-color: {{ category.color }}"></div>
                         <span class="text-sm font-medium text-gray-200">{{ category.name }}</span>
@@ -81,15 +81,15 @@
                 </div>
                 <div class="grid grid-cols-2 gap-2" id="image-grid">
                     {% for image in images %}
-                    <div class="image-thumbnail cursor-pointer border-2 border-transparent hover:border-blue-500 rounded-lg overflow-hidden transition-colors relative group" 
+                    <div class="image-thumbnail cursor-pointer border-2 border-transparent hover:border-blue-500 rounded-lg overflow-hidden transition-colors relative group"
                          data-image-id="{{ image.id }}">
-                        <img src="/{{ image.thumbnail_path }}" 
-                             alt="{{ image.original_filename }}" 
+                        <img src="/{{ image.thumbnail_path }}"
+                             alt="{{ image.original_filename }}"
                              class="w-full h-20 object-cover">
                         <div class="p-1 text-xs text-gray-300 truncate">{{ image.original_filename }}</div>
                         <!-- Delete button for thumbnail -->
-                        <button class="thumbnail-delete-btn absolute top-1 right-1 w-6 h-6 bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center text-xs hover:bg-red-700" 
-                                data-image-id="{{ image.id }}" 
+                        <button class="thumbnail-delete-btn absolute top-1 right-1 w-6 h-6 bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center text-xs hover:bg-red-700"
+                                data-image-id="{{ image.id }}"
                                 data-image-name="{{ image.original_filename }}"
                                 title="Delete image">
                             <i class="fas fa-times"></i>
@@ -144,11 +144,11 @@
             <div class="flex-1 relative overflow-hidden bg-gray-900">
                 <div id="canvas-container" class="absolute inset-0 flex items-center justify-center">
                     <div id="image-container" class="relative">
-                        <img id="main-image" 
-                             src="" 
-                             alt="Image to label" 
+                        <img id="main-image"
+                             src=""
+                             alt="Image to label"
                              class="max-w-full max-h-full object-contain hidden">
-                        <canvas id="annotation-canvas" 
+                        <canvas id="annotation-canvas"
                                 class="absolute inset-0 cursor-crosshair"></canvas>
                         <!-- No image placeholder -->
                         <div id="no-image-placeholder" class="flex flex-col items-center justify-center h-64 text-gray-500">
@@ -158,7 +158,7 @@
                         </div>
                     </div>
                 </div>
-                
+
                 <!-- Loading overlay -->
                 <div id="loading-overlay" class="absolute inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center hidden">
                     <div class="text-center">
@@ -178,24 +178,24 @@
         <form id="category-form">
             <div class="mb-4">
                 <label class="block text-sm font-medium text-gray-300 mb-2">Category Name</label>
-                <input type="text" id="category-name" required 
+                <input type="text" id="category-name" required
                        class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500">
             </div>
             <div class="mb-4">
                 <label class="block text-sm font-medium text-gray-300 mb-2">Color</label>
                 <div class="flex items-center space-x-2">
-                    <input type="color" id="category-color" value="#3B82F6" 
+                    <input type="color" id="category-color" value="#3B82F6"
                            class="w-12 h-8 border border-gray-600 rounded bg-gray-700">
-                    <input type="text" id="category-color-text" value="#3B82F6" 
+                    <input type="text" id="category-color-text" value="#3B82F6"
                            class="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500">
                 </div>
             </div>
             <div class="flex justify-end space-x-3">
-                <button type="button" id="cancel-category" 
+                <button type="button" id="cancel-category"
                         class="px-4 py-2 text-sm font-medium text-gray-300 bg-gray-700 rounded-md hover:bg-gray-600">
                     Cancel
                 </button>
-                <button type="submit" 
+                <button type="submit"
                         class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700">
                     Add Category
                 </button>
@@ -210,11 +210,11 @@
         <h3 class="text-lg font-semibold text-white mb-4">Delete Image</h3>
         <p class="text-gray-300 mb-6">Are you sure you want to delete this image? This action cannot be undone and will also delete all associated annotations.</p>
         <div class="flex justify-end space-x-3">
-            <button type="button" id="cancel-delete" 
+            <button type="button" id="cancel-delete"
                     class="px-4 py-2 text-sm font-medium text-gray-300 bg-gray-700 rounded-md hover:bg-gray-600">
                 Cancel
             </button>
-            <button type="button" id="confirm-delete" 
+            <button type="button" id="confirm-delete"
                     class="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700">
                 <i class="fas fa-trash mr-1"></i>Delete Image
             </button>
@@ -230,11 +230,11 @@
         <p class="text-sm text-gray-400 mb-6" id="thumbnail-delete-image-name"></p>
         <p class="text-gray-300 mb-6">This action cannot be undone and will also delete all associated annotations.</p>
         <div class="flex justify-end space-x-3">
-            <button type="button" id="cancel-thumbnail-delete" 
+            <button type="button" id="cancel-thumbnail-delete"
                     class="px-4 py-2 text-sm font-medium text-gray-300 bg-gray-700 rounded-md hover:bg-gray-600">
                 Cancel
             </button>
-            <button type="button" id="confirm-thumbnail-delete" 
+            <button type="button" id="confirm-thumbnail-delete"
                     class="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700">
                 <i class="fas fa-trash mr-1"></i>Delete Image
             </button>
@@ -263,7 +263,7 @@ document.addEventListener('DOMContentLoaded', function() {
     } else {
         showNoImagePlaceholder();
     }
-    
+
     setupEventListeners();
     loadAnnotations();
 });
@@ -315,7 +315,7 @@ function setupEventListeners() {
     // Image upload
     const imageUpload = document.getElementById('image-upload');
     const uploadButton = document.getElementById('upload-images');
-    
+
     imageUpload.addEventListener('change', function() {
         const files = this.files;
         if (files.length > 0) {
@@ -395,21 +395,21 @@ function loadImage(index) {
         showNoImagePlaceholder();
         return;
     }
-    
+
     currentImageIndex = index;
     const image = images[index];
-    
+
     document.getElementById('loading-overlay').classList.remove('hidden');
     document.getElementById('no-image-placeholder').classList.add('hidden');
-    
+
     const img = document.getElementById('main-image');
-    
+
     // Add timeout to prevent infinite loading
     const loadingTimeout = setTimeout(() => {
         document.getElementById('loading-overlay').classList.add('hidden');
         showNotification('Image loading timed out', 'error');
     }, 10000); // 10 second timeout
-    
+
     // Add error handling for failed image loads
     img.onerror = function() {
         clearTimeout(loadingTimeout);
@@ -417,24 +417,24 @@ function loadImage(index) {
         showNotification('Failed to load image', 'error');
         console.error('Failed to load image:', image.file_path);
     };
-    
+
     img.onload = function() {
         clearTimeout(loadingTimeout);
         document.getElementById('loading-overlay').classList.add('hidden');
         img.classList.remove('hidden');
         setupCanvas();
         loadImageAnnotations(image.id);
-        
+
         // Enable close and delete buttons when image is loaded
         document.getElementById('close-image').disabled = false;
         document.getElementById('close-image').classList.remove('opacity-50', 'cursor-not-allowed');
         document.getElementById('delete-image').disabled = false;
         document.getElementById('delete-image').classList.remove('opacity-50', 'cursor-not-allowed');
     };
-    
+
     img.src = `/${image.file_path}`;
     document.getElementById('current-image').textContent = index + 1;
-    
+
     // Update thumbnail selection
     document.querySelectorAll('.image-thumbnail').forEach((thumb, i) => {
         thumb.classList.toggle('border-blue-500', i === index);
@@ -445,7 +445,7 @@ function showNoImagePlaceholder() {
     document.getElementById('main-image').classList.add('hidden');
     document.getElementById('no-image-placeholder').classList.remove('hidden');
     document.getElementById('current-image').textContent = '0';
-    
+
     // Disable close and delete buttons when no image is loaded
     document.getElementById('close-image').disabled = true;
     document.getElementById('close-image').classList.add('opacity-50', 'cursor-not-allowed');
@@ -458,20 +458,20 @@ function closeImage() {
     document.getElementById('main-image').classList.add('hidden');
     document.getElementById('no-image-placeholder').classList.remove('hidden');
     document.getElementById('current-image').textContent = '0';
-    
+
     // Clear the canvas
     const canvas = document.getElementById('annotation-canvas');
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
+
     // Clear current annotations
     annotations = [];
-    
+
     // Reset thumbnail selection
     document.querySelectorAll('.image-thumbnail').forEach(thumb => {
         thumb.classList.remove('border-blue-500');
     });
-    
+
     // Show notification
     showNotification('Image closed', 'info');
 }
@@ -491,13 +491,13 @@ function deleteImage() {
         showNotification('No image to delete', 'error');
         return;
     }
-    
+
     const imageToDelete = images[currentImageIndex];
-    
+
     // Show loading state
     document.getElementById('confirm-delete').disabled = true;
     document.getElementById('confirm-delete').innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Deleting...';
-    
+
     // Delete the image via API
     fetch(`/api/images/${imageToDelete.id}`, {
         method: 'DELETE'
@@ -511,10 +511,10 @@ function deleteImage() {
     .then(data => {
         // Remove image from local array
         images.splice(currentImageIndex, 1);
-        
+
         // Update UI
         updateImageGrid();
-        
+
         // If we deleted the last image, show placeholder
         if (images.length === 0) {
             showNoImagePlaceholder();
@@ -526,17 +526,17 @@ function deleteImage() {
             // Load the next/previous image
             loadImage(currentImageIndex);
         }
-        
+
         // Hide modal
         hideDeleteConfirmation();
-        
+
         // Show success notification
         showNotification('Image deleted successfully', 'success');
     })
     .catch(error => {
         console.error('Error deleting image:', error);
         showNotification('Error deleting image', 'error');
-        
+
         // Reset button state
         document.getElementById('confirm-delete').disabled = false;
         document.getElementById('confirm-delete').innerHTML = '<i class="fas fa-trash mr-1"></i>Delete Image';
@@ -564,11 +564,11 @@ function deleteThumbnailImage() {
         return;
     }
     const imageId = image.id;
-    
+
     // Show loading state
     document.getElementById('confirm-thumbnail-delete').disabled = true;
     document.getElementById('confirm-thumbnail-delete').innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Deleting...';
-    
+
     // Delete the image via API
     fetch(`/api/images/${imageId}`, {
         method: 'DELETE'
@@ -585,10 +585,10 @@ function deleteThumbnailImage() {
         if (imageIndex !== -1) {
             images.splice(imageIndex, 1);
         }
-        
+
         // Update UI
         updateImageGrid();
-        
+
         // If we deleted the currently loaded image, show placeholder or load next
         if (currentImageIndex === imageIndex) {
             if (images.length === 0) {
@@ -605,17 +605,17 @@ function deleteThumbnailImage() {
             // Adjust current index if we deleted an image before the current one
             currentImageIndex--;
         }
-        
+
         // Hide modal
         hideThumbnailDeleteConfirmation();
-        
+
         // Show success notification
         showNotification('Image deleted successfully', 'success');
     })
     .catch(error => {
         console.error('Error deleting image:', error);
         showNotification('Error deleting image', 'error');
-        
+
         // Reset button state
         document.getElementById('confirm-thumbnail-delete').disabled = false;
         document.getElementById('confirm-thumbnail-delete').innerHTML = '<i class="fas fa-trash mr-1"></i>Delete Image';
@@ -626,12 +626,12 @@ function updateImageCounters() {
     const imageCount = document.getElementById('image-count');
     const totalImages = document.getElementById('total-images');
     const currentImage = document.getElementById('current-image');
-    
+
     // Update counts
     const countText = `${images.length} image${images.length !== 1 ? 's' : ''}`;
     imageCount.textContent = countText;
     totalImages.textContent = images.length;
-    
+
     // Update current image counter
     if (images.length === 0) {
         currentImage.textContent = '0';
@@ -644,31 +644,31 @@ function updateImageCounters() {
 
 function updateImageGrid() {
     const imageGrid = document.getElementById('image-grid');
-    
+
     // Update counters
     updateImageCounters();
-    
+
     // Rebuild grid
     imageGrid.innerHTML = '';
     images.forEach((image, index) => {
         const thumbDiv = document.createElement('div');
         thumbDiv.className = 'image-thumbnail cursor-pointer border-2 border-transparent hover:border-blue-500 rounded-lg overflow-hidden transition-colors relative group';
         thumbDiv.setAttribute('data-image-id', image.id);
-        
+
         thumbDiv.innerHTML = `
-            <img src="/${image.thumbnail_path}" 
-                 alt="${image.original_filename}" 
+            <img src="/${image.thumbnail_path}"
+                 alt="${image.original_filename}"
                  class="w-full h-20 object-cover">
             <div class="p-1 text-xs text-gray-300 truncate">${image.original_filename}</div>
             <!-- Delete button for thumbnail -->
-            <button class="thumbnail-delete-btn absolute top-1 right-1 w-6 h-6 bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center text-xs hover:bg-red-700" 
-                    data-image-id="${image.id}" 
+            <button class="thumbnail-delete-btn absolute top-1 right-1 w-6 h-6 bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center text-xs hover:bg-red-700"
+                    data-image-id="${image.id}"
                     data-image-name="${image.original_filename}"
                     title="Delete image">
                 <i class="fas fa-times"></i>
             </button>
         `;
-        
+
         // Add click event for thumbnail
         thumbDiv.addEventListener('click', function(e) {
             // Don't load image if delete button was clicked
@@ -677,7 +677,7 @@ function updateImageGrid() {
             }
             loadImage(index);
         });
-        
+
         // Add click event for delete button
         const deleteBtn = thumbDiv.querySelector('.thumbnail-delete-btn');
         deleteBtn.addEventListener('click', function(e) {
@@ -686,7 +686,7 @@ function updateImageGrid() {
             const imageName = this.dataset.imageName;
             showThumbnailDeleteConfirmation(imageId, imageName);
         });
-        
+
         imageGrid.appendChild(thumbDiv);
     });
 }
@@ -695,12 +695,12 @@ function startEditingProjectName() {
     const display = document.getElementById('project-name-display');
     const input = document.getElementById('project-name-input');
     const editBtn = document.getElementById('edit-project-name');
-    
+
     // Hide display and show input
     display.classList.add('hidden');
     input.classList.remove('hidden');
     editBtn.classList.add('hidden');
-    
+
     // Focus and select text
     input.focus();
     input.select();
@@ -710,10 +710,10 @@ function cancelEditingProjectName() {
     const display = document.getElementById('project-name-display');
     const input = document.getElementById('project-name-input');
     const editBtn = document.getElementById('edit-project-name');
-    
+
     // Reset input value to original
     input.value = display.textContent;
-    
+
     // Hide input and show display
     input.classList.add('hidden');
     display.classList.remove('hidden');
@@ -726,23 +726,23 @@ function saveProjectName() {
     const editBtn = document.getElementById('edit-project-name');
     const projectId = input.dataset.projectId;
     const newName = input.value.trim();
-    
+
     if (!newName) {
         showNotification('Project name cannot be empty', 'error');
         cancelEditingProjectName();
         return;
     }
-    
+
     if (newName === display.textContent) {
         // No change, just cancel editing
         cancelEditingProjectName();
         return;
     }
-    
+
     // Show loading state
     input.disabled = true;
     input.value = 'Saving...';
-    
+
     // Update project name via API
     fetch(`/api/projects/${projectId}`, {
         method: 'PUT',
@@ -762,23 +762,23 @@ function saveProjectName() {
     .then(data => {
         // Update display
         display.textContent = newName;
-        
+
         // Hide input and show display
         input.classList.add('hidden');
         display.classList.remove('hidden');
         editBtn.classList.remove('hidden');
-        
+
         // Reset input
         input.disabled = false;
         input.value = newName;
-        
+
         // Show success notification
         showNotification('Project name updated successfully', 'success');
     })
     .catch(error => {
         console.error('Error updating project name:', error);
         showNotification('Error updating project name', 'error');
-        
+
         // Reset input
         input.disabled = false;
         input.value = display.textContent;
@@ -790,16 +790,16 @@ function setupCanvas() {
     const canvas = document.getElementById('annotation-canvas');
     const img = document.getElementById('main-image');
     const container = document.getElementById('image-container');
-    
+
     // Only setup canvas if image is visible
     if (img.classList.contains('hidden')) {
         return;
     }
-    
+
     // Set canvas size to match image
     canvas.width = img.offsetWidth;
     canvas.height = img.offsetHeight;
-    
+
     // Clear canvas
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -807,7 +807,7 @@ function setupCanvas() {
 
 function startDrawing(e) {
     if (currentTool === 'select' || !selectedCategory) return;
-    
+
     isDrawing = true;
     const rect = e.target.getBoundingClientRect();
     startX = e.clientX - rect.left;
@@ -816,19 +816,19 @@ function startDrawing(e) {
 
 function draw(e) {
     if (!isDrawing || currentTool === 'select') return;
-    
+
     const canvas = document.getElementById('annotation-canvas');
     const ctx = canvas.getContext('2d');
     const rect = e.target.getBoundingClientRect();
     const currentX = e.clientX - rect.left;
     const currentY = e.clientY - rect.top;
-    
+
     // Clear canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
+
     // Draw existing annotations
     drawExistingAnnotations();
-    
+
     // Draw current annotation
     if (currentTool === 'bbox') {
         ctx.strokeStyle = getCategoryColor(selectedCategory);
@@ -844,12 +844,12 @@ function draw(e) {
 
 function stopDrawing(e) {
     if (!isDrawing || currentTool === 'select') return;
-    
+
     isDrawing = false;
     const rect = e.target.getBoundingClientRect();
     const endX = e.clientX - rect.left;
     const endY = e.clientY - rect.top;
-    
+
     // Create annotation
     const annotation = {
         id: Date.now(),
@@ -861,7 +861,7 @@ function stopDrawing(e) {
         },
         created_at: new Date().toISOString()
     };
-    
+
     annotations.push(annotation);
     drawExistingAnnotations();
 }
@@ -869,14 +869,14 @@ function stopDrawing(e) {
 function drawExistingAnnotations() {
     const canvas = document.getElementById('annotation-canvas');
     const ctx = canvas.getContext('2d');
-    
+
     annotations.forEach(annotation => {
         if (annotation.image_id !== images[currentImageIndex].id) return;
-        
+
         ctx.strokeStyle = getCategoryColor(annotation.label_category_id);
         ctx.fillStyle = getCategoryColor(annotation.label_category_id);
         ctx.lineWidth = 2;
-        
+
         if (annotation.tool === 'bbox') {
             const { startX, startY, endX, endY } = annotation.coordinates;
             ctx.strokeRect(startX, startY, endX - startX, endY - startY);
@@ -910,7 +910,7 @@ function loadImageAnnotations(imageId) {
 function saveAnnotations() {
     const imageId = images[currentImageIndex].id;
     const imageAnnotations = annotations.filter(ann => ann.image_id === imageId);
-    
+
     // Save each annotation
     const savePromises = imageAnnotations.map(annotation => {
         return fetch('/api/annotations', {
@@ -926,7 +926,7 @@ function saveAnnotations() {
             })
         });
     });
-    
+
     Promise.all(savePromises)
         .then(() => {
             showNotification('Annotations saved successfully!', 'success');
@@ -940,22 +940,22 @@ function saveAnnotations() {
 function uploadImages() {
     const fileInput = document.getElementById('image-upload');
     const files = fileInput.files;
-    
+
     if (files.length === 0) {
         showNotification('Please select images to upload', 'error');
         return;
     }
-    
+
     const uploadButton = document.getElementById('upload-images');
     uploadButton.disabled = true;
     uploadButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Uploading...';
-    
+
     const formData = new FormData();
     Array.from(files).forEach(file => {
         formData.append('file', file);
     });
     formData.append('dataset_id', {{ dataset.id }});
-    
+
     fetch('/api/images/upload', {
         method: 'POST',
         body: formData
@@ -982,10 +982,10 @@ function uploadImages() {
 
 function addCategory(e) {
     e.preventDefault();
-    
+
     const name = document.getElementById('category-name').value;
     const color = document.getElementById('category-color').value;
-    
+
     fetch('/api/label-categories', {
         method: 'POST',
         headers: {
@@ -1012,7 +1012,7 @@ function showNotification(message, type = 'info') {
     // Create notification element
     const notification = document.createElement('div');
     notification.className = `fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 transition-all duration-300 transform translate-x-full`;
-    
+
     // Set colors based on type
     if (type === 'success') {
         notification.classList.add('bg-green-500', 'text-white');
@@ -1021,21 +1021,21 @@ function showNotification(message, type = 'info') {
     } else {
         notification.classList.add('bg-blue-500', 'text-white');
     }
-    
+
     notification.innerHTML = `
         <div class="flex items-center">
             <i class="fas fa-${type === 'success' ? 'check' : type === 'error' ? 'exclamation' : 'info'}-circle mr-2"></i>
             <span>${message}</span>
         </div>
     `;
-    
+
     document.body.appendChild(notification);
-    
+
     // Animate in
     setTimeout(() => {
         notification.classList.remove('translate-x-full');
     }, 100);
-    
+
     // Auto remove after 3 seconds
     setTimeout(() => {
         notification.classList.add('translate-x-full');

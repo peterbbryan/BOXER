@@ -5,19 +5,19 @@ document.addEventListener('DOMContentLoaded', function() {
     const mainNav = document.getElementById('main-nav');
     let lastScrollTop = 0;
     let isScrolling = false;
-    
+
     if (mainNav) {
         let scrollTimeout;
-        
+
         window.addEventListener('scroll', function() {
             if (!isScrolling) {
                 window.requestAnimationFrame(function() {
                     const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
                     const scrollDelta = scrollTop - lastScrollTop;
-                    
+
                     // Clear any existing timeout
                     clearTimeout(scrollTimeout);
-                    
+
                     if (scrollDelta > 2 && scrollTop > 20) {
                         // Scrolling down - hide nav immediately
                         mainNav.style.transform = 'translateY(-100%)';
@@ -27,7 +27,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         mainNav.style.transform = 'translateY(0)';
                         mainNav.style.transition = 'transform 0.2s ease-out';
                     }
-                    
+
                     lastScrollTop = scrollTop;
                     isScrolling = false;
                 });
@@ -42,21 +42,21 @@ document.addEventListener('DOMContentLoaded', function() {
     // Mobile menu toggle
     const mobileMenuButton = document.getElementById('mobile-menu-button');
     const mobileMenu = document.getElementById('mobile-menu');
-    
+
     if (mobileMenuButton && mobileMenu) {
         mobileMenuButton.addEventListener('click', function() {
             mobileMenu.classList.toggle('hidden');
             mobileMenu.classList.add('mobile-menu-enter');
         });
     }
-    
+
     // Close mobile menu when clicking outside
     document.addEventListener('click', function(event) {
         if (mobileMenu && !mobileMenuButton.contains(event.target) && !mobileMenu.contains(event.target)) {
             mobileMenu.classList.add('hidden');
         }
     });
-    
+
     // Smooth scrolling for anchor links
     document.querySelectorAll('a[href^="#"]').forEach(anchor => {
         anchor.addEventListener('click', function (e) {
@@ -70,7 +70,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     });
-    
+
     // Initialize image labeling interface if present
     if (document.getElementById('image-canvas')) {
         initializeImageLabeling();
@@ -86,7 +86,7 @@ window.api = {
         }
         return await response.json();
     },
-    
+
     post: async function(url, data) {
         const response = await fetch(url, {
             method: 'POST',
@@ -95,7 +95,7 @@ window.api = {
             },
             body: JSON.stringify(data)
         });
-        
+
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -112,12 +112,12 @@ function initializeImageLabeling() {
     let startX, startY;
     let annotations = [];
     let currentCategory = null;
-    
+
     // Set up canvas
     canvas.addEventListener('mousedown', startDrawing);
     canvas.addEventListener('mousemove', draw);
     canvas.addEventListener('mouseup', stopDrawing);
-    
+
     // Label category selection
     document.querySelectorAll('.label-category').forEach(category => {
         category.addEventListener('click', function() {
@@ -130,7 +130,7 @@ function initializeImageLabeling() {
             };
         });
     });
-    
+
     // Tool selection
     document.querySelectorAll('.tool-button').forEach(button => {
         button.addEventListener('click', function() {
@@ -139,35 +139,35 @@ function initializeImageLabeling() {
             currentTool = this.dataset.tool;
         });
     });
-    
+
     function startDrawing(e) {
         if (!currentCategory) {
             alert('Please select a label category first');
             return;
         }
-        
+
         isDrawing = true;
         const rect = canvas.getBoundingClientRect();
         startX = e.clientX - rect.left;
         startY = e.clientY - rect.top;
     }
-    
+
     function draw(e) {
         if (!isDrawing) return;
-        
+
         const rect = canvas.getBoundingClientRect();
         const currentX = e.clientX - rect.left;
         const currentY = e.clientY - rect.top;
-        
+
         // Clear canvas and redraw
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         drawAnnotations();
-        
+
         // Draw current annotation
         ctx.strokeStyle = currentCategory.color;
         ctx.lineWidth = 2;
         ctx.setLineDash([5, 5]);
-        
+
         if (currentTool === 'bounding_box') {
             ctx.strokeRect(startX, startY, currentX - startX, currentY - startY);
         } else if (currentTool === 'polygon') {
@@ -182,15 +182,15 @@ function initializeImageLabeling() {
             ctx.fill();
         }
     }
-    
+
     function stopDrawing(e) {
         if (!isDrawing) return;
-        
+
         isDrawing = false;
         const rect = canvas.getBoundingClientRect();
         const endX = e.clientX - rect.left;
         const endY = e.clientY - rect.top;
-        
+
         // Create annotation
         const annotation = {
             id: Date.now(),
@@ -203,18 +203,18 @@ function initializeImageLabeling() {
                 endY: endY
             }
         };
-        
+
         annotations.push(annotation);
         drawAnnotations();
     }
-    
+
     function drawAnnotations() {
         annotations.forEach(annotation => {
             ctx.strokeStyle = annotation.category.color;
             ctx.fillStyle = annotation.category.color;
             ctx.lineWidth = 2;
             ctx.setLineDash([]);
-            
+
             if (annotation.tool === 'bounding_box') {
                 ctx.strokeRect(
                     annotation.coordinates.startX,
@@ -234,7 +234,7 @@ function initializeImageLabeling() {
             }
         });
     }
-    
+
     // Save annotations
     document.getElementById('save-annotations')?.addEventListener('click', function() {
         // Save annotations to server

@@ -9,7 +9,7 @@
         <h1 class="text-3xl font-bold text-gray-900 mb-2">Welcome back, {{ user.full_name or user.username }}!</h1>
         <p class="text-gray-600">Manage your data labeling projects and datasets</p>
     </div>
-    
+
     <!-- Stats Cards -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <div class="bg-white/70 backdrop-blur-sm rounded-xl p-6 shadow-lg">
@@ -23,7 +23,7 @@
                 </div>
             </div>
         </div>
-        
+
         <div class="bg-white/70 backdrop-blur-sm rounded-xl p-6 shadow-lg">
             <div class="flex items-center">
                 <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
@@ -35,7 +35,7 @@
                 </div>
             </div>
         </div>
-        
+
         <div class="bg-white/70 backdrop-blur-sm rounded-xl p-6 shadow-lg">
             <div class="flex items-center">
                 <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
@@ -47,7 +47,7 @@
                 </div>
             </div>
         </div>
-        
+
         <div class="bg-white/70 backdrop-blur-sm rounded-xl p-6 shadow-lg">
             <div class="flex items-center">
                 <div class="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
@@ -60,7 +60,7 @@
             </div>
         </div>
     </div>
-    
+
     <!-- Projects Section -->
     <div class="mb-8">
         <div class="flex items-center justify-between mb-6">
@@ -69,7 +69,7 @@
                 <i class="fas fa-plus mr-2"></i>New Project
             </button>
         </div>
-        
+
         {% if projects %}
         <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             {% for project in projects %}
@@ -85,11 +85,11 @@
                         </span>
                     </div>
                 </div>
-                
+
                 <div class="text-sm text-gray-500 mb-4">
                     Created {{ project.created_at.strftime('%B %d, %Y') }}
                 </div>
-                
+
                 <div class="flex items-center justify-between">
                     <div class="text-sm text-gray-600">
                         <i class="fas fa-database mr-1"></i>
@@ -130,8 +130,8 @@
             <div class="space-y-3">
                 {% for image in recent_images %}
                 <div class="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-                    <img src="/uploads/{{ image.thumbnail_path }}" 
-                         alt="{{ image.original_filename }}" 
+                    <img src="/uploads/{{ image.thumbnail_path }}"
+                         alt="{{ image.original_filename }}"
                          class="w-12 h-12 object-cover rounded">
                     <div class="flex-1">
                         <p class="text-sm font-medium text-gray-900">{{ image.original_filename }}</p>
@@ -147,7 +147,7 @@
             </div>
             {% endif %}
         </div>
-        
+
         <!-- System Status -->
         <div class="bg-white/70 backdrop-blur-sm rounded-xl p-6 shadow-lg">
             <h3 class="text-lg font-semibold text-gray-900 mb-4">System Status</h3>
@@ -159,7 +159,7 @@
                         Online
                     </span>
                 </div>
-                
+
                 <div class="flex items-center justify-between">
                     <span class="text-sm font-medium text-gray-700">Database</span>
                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
@@ -167,7 +167,7 @@
                         Connected
                     </span>
                 </div>
-                
+
                 <div class="flex items-center justify-between">
                     <span class="text-sm font-medium text-gray-700">Cache</span>
                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
@@ -175,7 +175,7 @@
                         Active
                     </span>
                 </div>
-                
+
                 <div class="flex items-center justify-between">
                     <span class="text-sm font-medium text-gray-700">CDN</span>
                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
@@ -186,7 +186,7 @@
             </div>
         </div>
     </div>
-    
+
     <!-- Quick Actions -->
     <div class="mt-8 bg-white/70 backdrop-blur-sm rounded-xl p-6 shadow-lg">
         <h3 class="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
@@ -195,17 +195,17 @@
                 <i class="fas fa-plus"></i>
                 <span>Add User</span>
             </button>
-            
+
             <button class="flex items-center justify-center space-x-2 bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 transition-colors duration-200">
                 <i class="fas fa-download"></i>
                 <span>Export Data</span>
             </button>
-            
+
             <button class="flex items-center justify-center space-x-2 bg-purple-600 text-white px-4 py-3 rounded-lg hover:bg-purple-700 transition-colors duration-200">
                 <i class="fas fa-cog"></i>
                 <span>Settings</span>
             </button>
-            
+
             <button class="flex items-center justify-center space-x-2 bg-orange-600 text-white px-4 py-3 rounded-lg hover:bg-orange-700 transition-colors duration-200">
                 <i class="fas fa-chart-bar"></i>
                 <span>Analytics</span>

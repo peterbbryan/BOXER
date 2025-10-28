@@ -2,11 +2,24 @@
 Database configuration and models for VibeCortex Data Labeling Tool
 """
 
-from sqlalchemy import create_engine, Column, Integer, String, Text, Boolean, DateTime, ForeignKey, Float, JSON
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, relationship
-from datetime import datetime
 import os
+from datetime import datetime
+from typing import Generator
+
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    JSON,
+    String,
+    Text,
+    create_engine,
+)
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import Session, relationship, sessionmaker
 
 # Database configuration
 # Use an absolute path for the database file
@@ -19,38 +32,41 @@ engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
+
 # Database Models
 class Project(Base):
     __tablename__ = "projects"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), nullable=False)
     description = Column(Text)
     is_public = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
+
     # Relationships
     datasets = relationship("Dataset", back_populates="project")
     label_categories = relationship("LabelCategory", back_populates="project")
 
+
 class Dataset(Base):
     __tablename__ = "datasets"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), nullable=False)
     description = Column(Text)
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
-    
+
     # Relationships
     project = relationship("Project", back_populates="datasets")
     images = relationship("Image", back_populates="dataset")
     annotations = relationship("Annotation", back_populates="dataset")
 
+
 class Image(Base):
     __tablename__ = "images"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     filename = Column(String(255), nullable=False)
     original_filename = Column(String(255), nullable=False)
@@ -63,63 +79,70 @@ class Image(Base):
     dataset_id = Column(Integer, ForeignKey("datasets.id"), nullable=False)
     uploaded_at = Column(DateTime, default=datetime.utcnow)
     is_processed = Column(Boolean, default=False)
-    
+
     # Relationships
     dataset = relationship("Dataset", back_populates="images")
     annotations = relationship("Annotation", back_populates="image")
 
+
 class LabelCategory(Base):
     __tablename__ = "label_categories"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), nullable=False)
     color = Column(String(7), default="#3B82F6")  # Hex color
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
-    
+
     # Relationships
     project = relationship("Project", back_populates="label_categories")
     annotations = relationship("Annotation", back_populates="label_category")
 
+
 class Annotation(Base):
     __tablename__ = "annotations"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     image_id = Column(Integer, ForeignKey("images.id"), nullable=False)
     dataset_id = Column(Integer, ForeignKey("datasets.id"), nullable=False)
-    label_category_id = Column(Integer, ForeignKey("label_categories.id"), nullable=False)
-    
+    label_category_id = Column(
+        Integer, ForeignKey("label_categories.id"), nullable=False
+    )
+
     # Annotation data (JSON format for flexibility)
     annotation_data = Column(JSON)  # Bounding boxes, polygons, points, etc.
     confidence = Column(Float, default=1.0)
     is_verified = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
+
     # Relationships
     image = relationship("Image", back_populates="annotations")
     dataset = relationship("Dataset", back_populates="annotations")
     label_category = relationship("LabelCategory", back_populates="annotations")
 
+
 # Database dependency
-def get_db():
+def get_db() -> Generator[Session, None, None]:
     db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
 
+
 # Database initialization
-def create_tables():
+def create_tables() -> None:
     """Create all database tables"""
     # Ensure data directory exists
     os.makedirs("../data", exist_ok=True)
     Base.metadata.create_all(bind=engine)
 
-def init_database():
+
+def init_database() -> None:
     """Initialize database with default data"""
     create_tables()
-    
+
     # Create default label categories for the default project
     db = SessionLocal()
     try:
@@ -132,23 +155,27 @@ def init_database():
                 {"name": "Person", "color": "#00FF00"},
                 {"name": "Vehicle", "color": "#0000FF"},
                 {"name": "Building", "color": "#FFFF00"},
-                {"name": "Other", "color": "#FF00FF"}
+                {"name": "Other", "color": "#FF00FF"},
             ]
-            
+
             for cat_data in default_categories:
-                existing = db.query(LabelCategory).filter(
-                    LabelCategory.name == cat_data["name"],
-                    LabelCategory.project_id == project.id
-                ).first()
-                
+                existing = (
+                    db.query(LabelCategory)
+                    .filter(
+                        LabelCategory.name == cat_data["name"],
+                        LabelCategory.project_id == project.id,
+                    )
+                    .first()
+                )
+
                 if not existing:
                     category = LabelCategory(
                         name=cat_data["name"],
                         color=cat_data["color"],
-                        project_id=project.id
+                        project_id=project.id,
                     )
                     db.add(category)
-            
+
             db.commit()
             print("✅ Default label categories created")
     finally:
