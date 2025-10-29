@@ -276,6 +276,18 @@ let isPanning = false;
 let lastPanX = 0;
 let lastPanY = 0;
 
+// Image dimensions for bounds checking
+let imageWidth = 0;
+let imageHeight = 0;
+
+// Helper function to clamp coordinates within image bounds
+function clampToImageBounds(x, y) {
+    return {
+        x: Math.max(0, Math.min(x, imageWidth - 1)),
+        y: Math.max(0, Math.min(y, imageHeight - 1))
+    };
+}
+
 const images = {{ images | tojson }};
 const labelCategories = {{ label_categories | tojson }};
 
@@ -561,6 +573,11 @@ function loadImage(index) {
         clearTimeout(loadingTimeout);
         document.getElementById('loading-overlay').classList.add('hidden');
         img.classList.remove('hidden');
+
+        // Store image dimensions for bounds checking
+        imageWidth = images[index].width;
+        imageHeight = images[index].height;
+
         setupCanvas();
 
         // Load annotations after canvas is set up
@@ -1055,14 +1072,21 @@ function stopDrawing(e) {
     const endX = (e.clientX - rect.left - panX) / zoomLevel;
     const endY = (e.clientY - rect.top - panY) / zoomLevel;
 
-    // Create annotation
+    // Clamp coordinates to image bounds
+    const clampedStart = clampToImageBounds(startX, startY);
+    const clampedEnd = clampToImageBounds(endX, endY);
+
+    // Create annotation with clamped coordinates
     const annotation = {
         id: Date.now(),
         image_id: images[currentImageIndex].id,
         label_category_id: selectedCategory,
         tool: currentTool,
         coordinates: {
-            startX, startY, endX, endY
+            startX: clampedStart.x,
+            startY: clampedStart.y,
+            endX: clampedEnd.x,
+            endY: clampedEnd.y
         },
         created_at: new Date().toISOString()
     };
@@ -1140,6 +1164,11 @@ function completePolygon() {
         return;
     }
 
+    // Clamp all polygon points to image bounds
+    const clampedPoints = polygonPoints.map(point =>
+        clampToImageBounds(point.x, point.y)
+    );
+
     // Create polygon annotation
     const annotation = {
         id: Date.now(),
@@ -1147,7 +1176,7 @@ function completePolygon() {
         label_category_id: selectedCategory,
         tool: 'polygon',
         coordinates: {
-            points: polygonPoints
+            points: clampedPoints
         },
         created_at: new Date().toISOString()
     };
