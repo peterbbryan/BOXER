@@ -14,6 +14,16 @@ project_root = Path(__file__).parent.parent
 os.chdir(project_root)
 
 
+def cleanup_test_artifacts():
+    """Clean up test artifacts after running tests"""
+    try:
+        from tests.cleanup_utils import cleanup_all
+
+        cleanup_all()
+    except Exception as e:
+        print(f"⚠️  Warning: Cleanup failed: {e}")
+
+
 def run_unit_tests():
     """Run unit tests"""
     print("=" * 60)
@@ -141,6 +151,12 @@ def main():
     )
     print(f"Total Time:        {total_time:.2f} seconds")
     print(f"Overall Result:    {'PASSED' if total_tests_passed else 'FAILED'}")
+    print()
+
+    # Clean up after running tests
+    print("=" * 60)
+    cleanup_test_artifacts()
+    print("=" * 60)
 
     if total_failures > 0 or total_errors > 0:
         print(f"\nTotal Failures: {total_failures}")

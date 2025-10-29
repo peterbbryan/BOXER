@@ -18,12 +18,11 @@ repos:
 
       - id: tests
         name: run-all-tests
-        entry: tests/run_tests.py
+        entry: bash -c 'cd tests && python cleanup_utils.py && python run_tests.py'
         language: system
         files: ^(backend/.*\.py|templates/.*\.html|tests/.*\.py)$
         pass_filenames: false
         always_run: true
-        working_directory: tests
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.5.0

@@ -103,6 +103,16 @@ def run_e2e_tests():
     return result.wasSuccessful(), len(result.failures), len(result.errors)
 
 
+def cleanup_test_artifacts():
+    """Clean up test artifacts after running tests"""
+    try:
+        from tests.cleanup_utils import cleanup_all
+
+        cleanup_all()
+    except Exception as e:
+        print(f"⚠️  Warning: Cleanup failed: {e}")
+
+
 def main():
     """Main test runner"""
     print("VibeCortex Test Suite")
@@ -111,6 +121,10 @@ def main():
     print(f"Test directory: {Path(__file__).parent}")
     print(f"Project root: {project_root}")
     print("=" * 60)
+
+    # Clean up before running tests
+    cleanup_test_artifacts()
+    print()
 
     # Run all test categories
     unit_success, unit_failures, unit_errors = run_unit_tests()
@@ -156,6 +170,12 @@ def main():
     print()
     print(f"Total Failures: {total_failures}")
     print(f"Total Errors:   {total_errors}")
+    print()
+
+    # Clean up after running tests
+    print("=" * 60)
+    cleanup_test_artifacts()
+    print("=" * 60)
 
     return 0 if total_tests_passed else 1
 
