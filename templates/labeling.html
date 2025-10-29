@@ -1683,7 +1683,17 @@ function fitToScreen() {
     const img = document.getElementById('main-image');
     const canvasContainer = document.getElementById('canvas-container');
 
-    if (!img || img.classList.contains('hidden')) return;
+    if (!img || img.classList.contains('hidden')) {
+        console.log('No image loaded or image is hidden');
+        return;
+    }
+
+    // Wait for image to be fully loaded
+    if (!img.complete || img.naturalWidth === 0) {
+        console.log('Image not fully loaded, waiting...');
+        img.onload = () => fitToScreen();
+        return;
+    }
 
     // Get the visible canvas container dimensions
     const containerRect = canvasContainer.getBoundingClientRect();
@@ -1693,11 +1703,16 @@ function fitToScreen() {
     const imgWidth = img.naturalWidth;
     const imgHeight = img.naturalHeight;
 
+    console.log('Container dimensions:', containerWidth, 'x', containerHeight);
+    console.log('Image dimensions:', imgWidth, 'x', imgHeight);
+
     if (imgWidth && imgHeight) {
         // Calculate scale to fit the container with padding
         const scaleX = containerWidth / imgWidth;
         const scaleY = containerHeight / imgHeight;
         zoomLevel = Math.min(scaleX, scaleY) * 0.9; // 0.9 for some padding
+
+        console.log('Calculated zoom level:', zoomLevel);
 
         // Center the image in the canvas container
         const scaledWidth = imgWidth * zoomLevel;
@@ -1705,7 +1720,11 @@ function fitToScreen() {
         panX = (containerWidth - scaledWidth) / 2;
         panY = (containerHeight - scaledHeight) / 2;
 
+        console.log('Calculated pan:', panX, panY);
+
         updateImageTransform();
+    } else {
+        console.log('Invalid image dimensions:', imgWidth, imgHeight);
     }
 }
 
@@ -1721,6 +1740,8 @@ function updateImageTransform() {
     canvas.width = containerRect.width;
     canvas.height = containerRect.height;
 
+    console.log('updateImageTransform - zoomLevel:', zoomLevel, 'panX:', panX, 'panY:', panY);
+
     // Set image size and position using transforms
     // Ensure the image maintains its natural aspect ratio
     img.style.width = `${img.naturalWidth}px`;
@@ -1733,6 +1754,8 @@ function updateImageTransform() {
     img.style.position = 'absolute';
     img.style.transform = `translate(${panX}px, ${panY}px) scale(${zoomLevel})`;
     img.style.transformOrigin = '0 0';
+
+    console.log('Applied transform:', img.style.transform);
 
     // Redraw annotations
     drawExistingAnnotations();
