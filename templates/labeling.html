@@ -1664,16 +1664,14 @@ function updateImageTransform() {
     canvas.width = containerRect.width;
     canvas.height = containerRect.height;
 
-    // Set image size and position
-    const scaledWidth = img.naturalWidth * zoomLevel;
-    const scaledHeight = img.naturalHeight * zoomLevel;
-
-    img.style.width = `${scaledWidth}px`;
-    img.style.height = `${scaledHeight}px`;
-    img.style.left = `${panX}px`;
-    img.style.top = `${panY}px`;
+    // Set image size and position using transforms
+    img.style.width = `${img.naturalWidth}px`;
+    img.style.height = `${img.naturalHeight}px`;
+    img.style.left = '0px';
+    img.style.top = '0px';
     img.style.position = 'absolute';
-    img.style.transform = 'none';
+    img.style.transform = `translate(${panX}px, ${panY}px) scale(${zoomLevel})`;
+    img.style.transformOrigin = '0 0';
 
     // Redraw annotations
     drawExistingAnnotations();
