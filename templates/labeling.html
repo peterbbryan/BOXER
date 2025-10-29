@@ -1519,11 +1519,14 @@ function saveAnnotationToDatabase(annotation) {
             }
         };
     } else if (annotation.tool === 'point') {
+        // Points use startX/startY structure (same as bbox creation)
         annotationData = {
             tool: annotation.tool,
             coordinates: {
-                x: annotation.coordinates.x,
-                y: annotation.coordinates.y
+                startX: annotation.coordinates.startX,
+                startY: annotation.coordinates.startY,
+                endX: annotation.coordinates.endX,
+                endY: annotation.coordinates.endY
             }
         };
     } else if (annotation.tool === 'polygon') {
@@ -1885,14 +1888,17 @@ function dragAnnotations(x, y) {
             coords.endY = clampedEnd.y;
             console.log(`  Updated bbox to:`, coords);
         } else if (annotation.tool === 'point') {
-            // For points, move the center
-            const newX = originalCoords.x + deltaX;
-            const newY = originalCoords.y + deltaY;
+            // For points, use startX/startY (same structure as bbox)
+            const newStartX = originalCoords.startX + deltaX;
+            const newStartY = originalCoords.startY + deltaY;
 
             // Clamp to image bounds
-            const clamped = clampToImageBounds(newX, newY);
-            coords.x = clamped.x;
-            coords.y = clamped.y;
+            const clamped = clampToImageBounds(newStartX, newStartY);
+            coords.startX = clamped.x;
+            coords.startY = clamped.y;
+            coords.endX = clamped.x;  // Keep end point same as start for point
+            coords.endY = clamped.y;
+            console.log(`  Updated point to:`, coords);
         } else if (annotation.tool === 'polygon') {
             // For polygons, move all points
             const newPoints = originalCoords.points.map(point => {
