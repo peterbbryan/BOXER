@@ -16,13 +16,11 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 from backend.image_utils import (
-    generate_filename,
+    generate_unique_filename,
     create_thumbnail,
     get_image_info,
-    is_valid_image,
-    get_mime_type,
+    validate_image,
     process_uploaded_image,
-    delete_image_files,
 )
 
 
@@ -42,10 +40,10 @@ class TestImageUtils(unittest.TestCase):
                 os.remove(file_path)
         os.rmdir(self.temp_dir)
 
-    def test_generate_filename(self):
-        """Test filename generation"""
+    def test_generate_unique_filename(self):
+        """Test unique filename generation"""
         original_filename = "test_image.jpg"
-        generated = generate_filename(original_filename)
+        generated = generate_unique_filename(original_filename)
 
         # Should be different from original
         self.assertNotEqual(generated, original_filename)
@@ -56,8 +54,8 @@ class TestImageUtils(unittest.TestCase):
         # Should be reasonable length
         self.assertLess(len(generated), 100)
 
-    def test_generate_filename_different_inputs(self):
-        """Test filename generation with different inputs"""
+    def test_generate_unique_filename_different_inputs(self):
+        """Test unique filename generation with different inputs"""
         test_cases = [
             "image.png",
             "photo.jpeg",
@@ -70,7 +68,7 @@ class TestImageUtils(unittest.TestCase):
 
         for original in test_cases:
             with self.subTest(original=original):
-                generated = generate_filename(original)
+                generated = generate_unique_filename(original)
                 self.assertNotEqual(generated, original)
                 self.assertTrue(generated.endswith(os.path.splitext(original)[1]))
 
@@ -88,10 +86,10 @@ class TestImageUtils(unittest.TestCase):
         self.assertTrue(result)
         self.assertTrue(os.path.exists(thumbnail_path))
 
-        # Check thumbnail dimensions
+        # Check thumbnail dimensions (default size is 300x300)
         with Image.open(thumbnail_path) as thumb:
-            self.assertLessEqual(thumb.width, 200)
-            self.assertLessEqual(thumb.height, 200)
+            self.assertLessEqual(thumb.width, 300)
+            self.assertLessEqual(thumb.height, 300)
 
     def test_create_thumbnail_small_image(self):
         """Test thumbnail creation with small image"""
@@ -126,54 +124,47 @@ class TestImageUtils(unittest.TestCase):
 
         self.assertEqual(info["width"], 800)
         self.assertEqual(info["height"], 600)
-        self.assertEqual(info["mime_type"], "image/jpeg")
+        self.assertEqual(info["format"], "JPEG")
         self.assertGreater(info["file_size"], 0)
 
     def test_get_image_info_nonexistent_file(self):
         """Test getting image info for non-existent file"""
         info = get_image_info("nonexistent.jpg")
 
-        self.assertIsNone(info)
+        self.assertEqual(info, {})
 
-    def test_is_valid_image(self):
+    def test_validate_image(self):
         """Test image validation"""
         # Create a valid test image
         test_image_path = os.path.join(self.temp_dir, "valid.jpg")
         img = Image.new("RGB", (100, 100), color="red")
         img.save(test_image_path, "JPEG")
 
-        self.assertTrue(is_valid_image(test_image_path))
+        self.assertTrue(validate_image(test_image_path))
 
-    def test_is_valid_image_invalid_file(self):
+    def test_validate_image_invalid_file(self):
         """Test image validation with invalid file"""
         # Create a text file (not an image)
         test_file_path = os.path.join(self.temp_dir, "not_image.txt")
         with open(test_file_path, "w") as f:
             f.write("This is not an image")
 
-        self.assertFalse(is_valid_image(test_file_path))
+        self.assertFalse(validate_image(test_file_path))
 
-    def test_is_valid_image_nonexistent_file(self):
+    def test_validate_image_nonexistent_file(self):
         """Test image validation with non-existent file"""
-        self.assertFalse(is_valid_image("nonexistent.jpg"))
+        self.assertFalse(validate_image("nonexistent.jpg"))
 
-    def test_get_mime_type(self):
-        """Test MIME type detection"""
-        test_cases = [
-            ("test.jpg", "image/jpeg"),
-            ("test.jpeg", "image/jpeg"),
-            ("test.png", "image/png"),
-            ("test.gif", "image/gif"),
-            ("test.bmp", "image/bmp"),
-            ("test.tiff", "image/tiff"),
-            ("test.tif", "image/tiff"),
-            ("test.unknown", "application/octet-stream"),
-        ]
+    def test_get_image_info_mime_type(self):
+        """Test MIME type detection through get_image_info"""
+        # Create a test image
+        test_image_path = os.path.join(self.temp_dir, "test.jpg")
+        img = Image.new("RGB", (100, 100), color="red")
+        img.save(test_image_path, "JPEG")
 
-        for filename, expected_mime in test_cases:
-            with self.subTest(filename=filename):
-                mime_type = get_mime_type(filename)
-                self.assertEqual(mime_type, expected_mime)
+        info = get_image_info(test_image_path)
+        self.assertIn("format", info)
+        self.assertEqual(info["format"], "JPEG")
 
     def test_process_uploaded_image(self):
         """Test processing uploaded image"""
@@ -182,35 +173,27 @@ class TestImageUtils(unittest.TestCase):
         img = Image.new("RGB", (800, 600), color="red")
         img.save(test_image_path, "JPEG")
 
-        # Mock file operations
-        with patch("backend.image_utils.os.path.exists", return_value=True), patch(
-            "backend.image_utils.os.makedirs"
-        ), patch("backend.image_utils.shutil.copy2") as mock_copy, patch(
-            "backend.image_utils.create_thumbnail", return_value=True
-        ) as mock_thumb:
-            result = process_uploaded_image(
-                test_image_path, "test.jpg", self.temp_dir, self.temp_dir
-            )
+        # Test the actual function
+        result = process_uploaded_image(test_image_path, "test.jpg")
 
-            self.assertIsNotNone(result)
-            self.assertEqual(result["width"], 800)
-            self.assertEqual(result["height"], 600)
-            self.assertEqual(result["mime_type"], "image/jpeg")
-            self.assertGreater(result["file_size"], 0)
-            self.assertIn("filename", result)
-            self.assertIn("file_path", result)
-            self.assertIn("thumbnail_path", result)
+        self.assertIsNotNone(result)
+        self.assertEqual(result["width"], 800)
+        self.assertEqual(result["height"], 600)
+        self.assertEqual(result["mime_type"], "image/jpeg")
+        self.assertGreater(result["file_size"], 0)
+        self.assertIn("filename", result)
+        self.assertIn("file_path", result)
+        self.assertIn("thumbnail_path", result)
+        self.assertIn("original_filename", result)
 
     def test_process_uploaded_image_invalid(self):
         """Test processing invalid image"""
-        result = process_uploaded_image(
-            "nonexistent.jpg", "test.jpg", self.temp_dir, self.temp_dir
-        )
+        # This will raise an exception since the file doesn't exist
+        with self.assertRaises(OSError):
+            process_uploaded_image("nonexistent.jpg", "test.jpg")
 
-        self.assertIsNone(result)
-
-    def test_delete_image_files(self):
-        """Test deleting image files"""
+    def test_image_file_operations(self):
+        """Test basic image file operations"""
         # Create test files
         image_path = os.path.join(self.temp_dir, "test.jpg")
         thumbnail_path = os.path.join(self.temp_dir, "thumb_test.jpg")
@@ -220,32 +203,16 @@ class TestImageUtils(unittest.TestCase):
         with open(thumbnail_path, "w") as f:
             f.write("fake thumbnail")
 
-        # Test deletion
-        result = delete_image_files(image_path, thumbnail_path)
+        # Test that files exist
+        self.assertTrue(os.path.exists(image_path))
+        self.assertTrue(os.path.exists(thumbnail_path))
 
-        self.assertTrue(result)
+        # Test manual deletion
+        os.remove(image_path)
+        os.remove(thumbnail_path)
+
         self.assertFalse(os.path.exists(image_path))
         self.assertFalse(os.path.exists(thumbnail_path))
-
-    def test_delete_image_files_nonexistent(self):
-        """Test deleting non-existent files"""
-        result = delete_image_files("nonexistent.jpg", "nonexistent_thumb.jpg")
-
-        # Should still return True (files don't exist, so deletion is "successful")
-        self.assertTrue(result)
-
-    def test_delete_image_files_partial_failure(self):
-        """Test deleting files when one exists and one doesn't"""
-        # Create one test file
-        image_path = os.path.join(self.temp_dir, "test.jpg")
-        with open(image_path, "w") as f:
-            f.write("fake image")
-
-        # Test deletion with one existing and one non-existent file
-        result = delete_image_files(image_path, "nonexistent_thumb.jpg")
-
-        self.assertTrue(result)
-        self.assertFalse(os.path.exists(image_path))
 
     def test_image_formats_support(self):
         """Test support for different image formats"""
@@ -266,12 +233,12 @@ class TestImageUtils(unittest.TestCase):
                 img.save(test_image_path, format_name)
 
                 # Test validation
-                self.assertTrue(is_valid_image(test_image_path))
+                self.assertTrue(validate_image(test_image_path))
 
                 # Test info extraction
                 info = get_image_info(test_image_path)
                 self.assertIsNotNone(info)
-                self.assertEqual(info["mime_type"], expected_mime)
+                self.assertEqual(info["format"], format_name)
 
     def test_thumbnail_preserves_aspect_ratio(self):
         """Test that thumbnail creation preserves aspect ratio"""

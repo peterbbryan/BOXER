@@ -63,7 +63,8 @@ class TestFullWorkflows(unittest.TestCase):
         # Step 2: Upload the image
         with open(test_image_path, "rb") as f:
             files = {"file": ("test_workflow.jpg", f, "image/jpeg")}
-            response = self.client.post("/api/upload", files=files)
+            data = {"dataset_id": 1}
+            response = self.client.post("/api/images/upload", files=files, data=data)
 
         self.assertEqual(response.status_code, 200)
         upload_data = response.json()
@@ -74,8 +75,11 @@ class TestFullWorkflows(unittest.TestCase):
         bbox_annotation = {
             "image_id": image_id,
             "label_category_id": 1,
-            "tool": "bbox",
-            "coordinates": {"startX": 100, "startY": 100, "endX": 300, "endY": 200},
+            "annotation_data": {
+                "tool": "bbox",
+                "coordinates": {"startX": 100, "startY": 100, "endX": 300, "endY": 200},
+            },
+            "confidence": 1.0,
         }
 
         response = self.client.post("/api/annotations", json=bbox_annotation)
@@ -88,8 +92,11 @@ class TestFullWorkflows(unittest.TestCase):
         point_annotation = {
             "image_id": image_id,
             "label_category_id": 1,
-            "tool": "point",
-            "coordinates": {"startX": 150, "startY": 150},
+            "annotation_data": {
+                "tool": "point",
+                "coordinates": {"startX": 150, "startY": 150},
+            },
+            "confidence": 1.0,
         }
 
         response = self.client.post("/api/annotations", json=point_annotation)
@@ -102,15 +109,18 @@ class TestFullWorkflows(unittest.TestCase):
         polygon_annotation = {
             "image_id": image_id,
             "label_category_id": 1,
-            "tool": "polygon",
-            "coordinates": {
-                "points": [
-                    {"x": 200, "y": 200},
-                    {"x": 400, "y": 200},
-                    {"x": 400, "y": 300},
-                    {"x": 200, "y": 300},
-                ]
+            "annotation_data": {
+                "tool": "polygon",
+                "coordinates": {
+                    "points": [
+                        {"x": 200, "y": 200},
+                        {"x": 400, "y": 200},
+                        {"x": 400, "y": 300},
+                        {"x": 200, "y": 300},
+                    ]
+                },
             },
+            "confidence": 1.0,
         }
 
         response = self.client.post("/api/annotations", json=polygon_annotation)
@@ -163,7 +173,7 @@ class TestFullWorkflows(unittest.TestCase):
             new_name = "Updated Project Name"
 
             response = self.client.put(
-                f"/api/projects/{project_id}/name", json={"name": new_name}
+                f"/api/projects/{project_id}", json={"name": new_name}
             )
             self.assertEqual(response.status_code, 200)
 
@@ -202,7 +212,10 @@ class TestFullWorkflows(unittest.TestCase):
                         f"image/{format_name.lower() if format_name != 'JPEG' else 'jpeg'}",
                     )
                 }
-                response = self.client.post("/api/upload", files=files)
+                data = {"dataset_id": 1}
+                response = self.client.post(
+                    "/api/images/upload", files=files, data=data
+                )
 
             self.assertEqual(response.status_code, 200)
             upload_data = response.json()
@@ -217,8 +230,16 @@ class TestFullWorkflows(unittest.TestCase):
             annotation = {
                 "image_id": image_id,
                 "label_category_id": 1,
-                "tool": "bbox",
-                "coordinates": {"startX": 50, "startY": 50, "endX": 150, "endY": 100},
+                "annotation_data": {
+                    "tool": "bbox",
+                    "coordinates": {
+                        "startX": 50,
+                        "startY": 50,
+                        "endX": 150,
+                        "endY": 100,
+                    },
+                },
+                "confidence": 1.0,
             }
 
             response = self.client.post("/api/annotations", json=annotation)
@@ -245,7 +266,8 @@ class TestFullWorkflows(unittest.TestCase):
 
         with open(invalid_file_path, "rb") as f:
             files = {"file": ("invalid.txt", f, "text/plain")}
-            response = self.client.post("/api/upload", files=files)
+            data = {"dataset_id": 1}
+            response = self.client.post("/api/images/upload", files=files, data=data)
 
         self.assertEqual(response.status_code, 400)
 
@@ -253,8 +275,11 @@ class TestFullWorkflows(unittest.TestCase):
         invalid_annotation = {
             "image_id": 99999,
             "label_category_id": 1,
-            "tool": "bbox",
-            "coordinates": {"startX": 100, "startY": 100, "endX": 200, "endY": 200},
+            "annotation_data": {
+                "tool": "bbox",
+                "coordinates": {"startX": 100, "startY": 100, "endX": 200, "endY": 200},
+            },
+            "confidence": 1.0,
         }
 
         response = self.client.post("/api/annotations", json=invalid_annotation)
@@ -289,7 +314,10 @@ class TestFullWorkflows(unittest.TestCase):
         for i, image_path in enumerate(test_images):
             with open(image_path, "rb") as f:
                 files = {"file": (f"concurrent_{i}.jpg", f, "image/jpeg")}
-                response = self.client.post("/api/upload", files=files)
+                data = {"dataset_id": 1}
+                response = self.client.post(
+                    "/api/images/upload", files=files, data=data
+                )
 
             self.assertEqual(response.status_code, 200)
             upload_data = response.json()
@@ -300,13 +328,16 @@ class TestFullWorkflows(unittest.TestCase):
             annotation = {
                 "image_id": image_id,
                 "label_category_id": 1,
-                "tool": "bbox",
-                "coordinates": {
-                    "startX": i * 50,
-                    "startY": i * 50,
-                    "endX": (i + 1) * 50,
-                    "endY": (i + 1) * 50,
+                "annotation_data": {
+                    "tool": "bbox",
+                    "coordinates": {
+                        "startX": i * 50,
+                        "startY": i * 50,
+                        "endX": (i + 1) * 50,
+                        "endY": (i + 1) * 50,
+                    },
                 },
+                "confidence": 1.0,
             }
 
             response = self.client.post("/api/annotations", json=annotation)
@@ -333,7 +364,8 @@ class TestFullWorkflows(unittest.TestCase):
 
         with open(test_image_path, "rb") as f:
             files = {"file": ("persistence_test.jpg", f, "image/jpeg")}
-            response = self.client.post("/api/upload", files=files)
+            data = {"dataset_id": 1}
+            response = self.client.post("/api/images/upload", files=files, data=data)
 
         self.assertEqual(response.status_code, 200)
         upload_data = response.json()
@@ -343,8 +375,11 @@ class TestFullWorkflows(unittest.TestCase):
         annotation = {
             "image_id": image_id,
             "label_category_id": 1,
-            "tool": "point",
-            "coordinates": {"startX": 150, "startY": 100},
+            "annotation_data": {
+                "tool": "point",
+                "coordinates": {"startX": 150, "startY": 100},
+            },
+            "confidence": 1.0,
         }
 
         response = self.client.post("/api/annotations", json=annotation)
