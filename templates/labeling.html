@@ -295,6 +295,8 @@ let isDraggingAnnotations = false; // Track if we're dragging selected annotatio
 let dragStartX = 0;
 let dragStartY = 0;
 let annotationOriginalPositions = []; // Store original positions when drag starts
+let lastContextMenuX = 0; // Store last right-click position for context menu
+let lastContextMenuY = 0;
 
 // Zoom and pan variables
 let zoomLevel = 1;
@@ -422,6 +424,16 @@ function setupEventListeners() {
     canvas.addEventListener('mousedown', startDrawing);
     canvas.addEventListener('mousemove', draw);
     canvas.addEventListener('mouseup', stopDrawing);
+    canvas.addEventListener('contextmenu', function(e) {
+        // Show context menu on right-click if annotation is selected
+        if (selectedAnnotations.length > 0) {
+            e.preventDefault();
+            lastContextMenuX = e.clientX;
+            lastContextMenuY = e.clientY;
+            showAnnotationContextMenu();
+            return false;
+        }
+    });
     canvas.addEventListener('dblclick', function(e) {
         if (currentTool === 'polygon' && isDrawingPolygon) {
             completePolygon();
@@ -1086,6 +1098,8 @@ function startDrawing(e) {
                 // Single select - clear all and select one
                 selectedAnnotations = [clickedAnnotation];
                 drawExistingAnnotations();
+                // Show context menu for single selection
+                showAnnotationContextMenu();
             }
 
             // Only start dragging if the annotation was already selected before this click
@@ -1796,18 +1810,9 @@ function stopDraggingAnnotations() {
 function showAnnotationContextMenu() {
     const contextMenu = document.getElementById('annotation-context-menu');
     if (contextMenu && selectedAnnotations.length > 0) {
-        // Position the context menu near the first selected annotation
-        const canvas = document.getElementById('annotation-canvas');
-        const rect = canvas.getBoundingClientRect();
-
-        // Calculate position based on annotation center (use first selected)
-        const coords = selectedAnnotations[0].coordinates;
-        const centerX = (coords.startX + coords.endX) / 2;
-        const centerY = (coords.startY + coords.endY) / 2;
-
-        // Position relative to viewport
-        const x = rect.left + centerX;
-        const y = rect.top + centerY;
+        // Position the context menu at the stored mouse position (right-click position)
+        const x = lastContextMenuX;
+        const y = lastContextMenuY;
 
         // Ensure menu stays within viewport
         const menuWidth = 200; // Approximate menu width
