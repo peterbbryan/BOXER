@@ -679,6 +679,9 @@ function loadImage(index) {
 
         setupCanvas();
 
+        // Automatically fit image to screen
+        fitToScreen();
+
         // Load annotations after canvas is set up
         setTimeout(() => {
             loadImageAnnotations(image.id);
