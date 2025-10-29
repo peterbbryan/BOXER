@@ -156,7 +156,7 @@
                         <img id="main-image"
                              src=""
                              alt="Image to label"
-                             class="max-w-full max-h-full object-contain hidden">
+                             class="hidden">
                         <canvas id="annotation-canvas"
                                 class="absolute inset-0 cursor-crosshair"></canvas>
                         <!-- No image placeholder -->
@@ -944,7 +944,9 @@ function setupCanvas() {
 }
 
 function startDrawing(e) {
-    const rect = e.target.getBoundingClientRect();
+    const canvas = document.getElementById('annotation-canvas');
+    const img = document.getElementById('main-image');
+    const rect = canvas.getBoundingClientRect();
     const x = (e.clientX - rect.left - panX) / zoomLevel;
     const y = (e.clientY - rect.top - panY) / zoomLevel;
 
@@ -998,7 +1000,7 @@ function draw(e) {
 
     const canvas = document.getElementById('annotation-canvas');
     const ctx = canvas.getContext('2d');
-    const rect = e.target.getBoundingClientRect();
+    const rect = canvas.getBoundingClientRect();
     const currentX = (e.clientX - rect.left - panX) / zoomLevel;
     const currentY = (e.clientY - rect.top - panY) / zoomLevel;
 
@@ -1640,8 +1642,16 @@ function updateImageTransform() {
     canvas.width = containerRect.width;
     canvas.height = containerRect.height;
 
-    img.style.transform = `translate(${panX}px, ${panY}px) scale(${zoomLevel})`;
-    img.style.transformOrigin = '0 0';
+    // Set image size and position
+    const scaledWidth = img.naturalWidth * zoomLevel;
+    const scaledHeight = img.naturalHeight * zoomLevel;
+
+    img.style.width = `${scaledWidth}px`;
+    img.style.height = `${scaledHeight}px`;
+    img.style.left = `${panX}px`;
+    img.style.top = `${panY}px`;
+    img.style.position = 'absolute';
+    img.style.transform = 'none';
 
     // Redraw annotations
     drawExistingAnnotations();
