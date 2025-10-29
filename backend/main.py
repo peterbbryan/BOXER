@@ -35,7 +35,7 @@ app = FastAPI(
     docs_url="/api/docs",
     redoc_url="/api/redoc",
     # Configure for large file uploads (50MB default)
-    max_request_size=50 * 1024 * 1024,  # 50MB
+    max_request_size=100 * 1024 * 1024,  # 100MB
 )
 
 
@@ -316,20 +316,20 @@ async def create_dataset(dataset_data: DatasetCreate, db: Session = Depends(get_
 # Image upload endpoint
 @app.post("/api/images/upload")
 async def upload_image(
-    file: UploadFile = File(...),  # 50MB max file size (handled below)
+    file: UploadFile = File(...),  # 100MB max file size (handled below)
     dataset_id: int = Form(...),
     db: Session = Depends(get_db),
 ):
     """Upload an image to a dataset.
 
-    Supports large images up to 50MB. The system automatically:
+    Supports large images up to 100MB. The system automatically:
     - Validates the image
     - Creates a thumbnail for faster loading
     - Stores the image with unique filename
     - Records metadata in the database
 
     Args:
-        file: Uploaded image file (max 50MB).
+        file: Uploaded image file (max 100MB).
         dataset_id: ID of the dataset to upload to.
         db: Database session dependency.
 
@@ -349,8 +349,8 @@ async def upload_image(
     if not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="File must be an image")
 
-    # Check file size (max 50MB)
-    MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
+    # Check file size (max 100MB)
+    MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB
     content = await file.read()
     if len(content) > MAX_FILE_SIZE:
         max_size_mb = MAX_FILE_SIZE / (1024 * 1024)
