@@ -9,9 +9,9 @@ import sys
 import os
 from pathlib import Path
 
-# Add the project root to the Python path
+# Change to project root directory for proper imports
 project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root))
+os.chdir(project_root)
 
 
 def run_fast_tests():

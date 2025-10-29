@@ -4,13 +4,7 @@ Unit tests for database models
 
 import unittest
 from unittest.mock import Mock, patch
-import sys
-from pathlib import Path
 from datetime import datetime
-
-# Add the project root to the Python path
-project_root = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(project_root))
 
 from backend.database import Project, Dataset, Image, Annotation, LabelCategory
 

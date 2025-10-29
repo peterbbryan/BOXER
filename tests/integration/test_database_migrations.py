@@ -5,15 +5,9 @@ Database migration and schema tests
 import unittest
 import tempfile
 import os
-import sys
-from pathlib import Path
 from unittest.mock import patch
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
-
-# Add the project root to the Python path
-project_root = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(project_root))
 
 from backend.database import (
     Base,

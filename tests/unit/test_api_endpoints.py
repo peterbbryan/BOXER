@@ -5,13 +5,6 @@ Unit tests for FastAPI endpoints
 import unittest
 from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
-import sys
-import os
-from pathlib import Path
-
-# Add the project root to the Python path
-project_root = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(project_root))
 
 from backend.main import app
 from backend.database import get_db

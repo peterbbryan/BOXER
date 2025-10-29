@@ -6,14 +6,9 @@ import unittest
 from unittest.mock import Mock, patch, mock_open
 import tempfile
 import os
-import sys
 from pathlib import Path
 from PIL import Image
 import hashlib
-
-# Add the project root to the Python path
-project_root = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(project_root))
 
 from backend.image_utils import (
     generate_unique_filename,
