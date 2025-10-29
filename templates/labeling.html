@@ -566,6 +566,16 @@ function setupEventListeners() {
             selectAllAnnotations();
             showNotification(`Selected ${selectedAnnotations.length} annotation(s)`, 'success');
         }
+        // Ctrl+C to copy selected annotations
+        if ((e.ctrlKey || e.metaKey) && e.key === 'c' && selectedAnnotations.length > 0) {
+            e.preventDefault();
+            copyAnnotations();
+        }
+        // Ctrl+V to paste annotations
+        if ((e.ctrlKey || e.metaKey) && e.key === 'v' && currentTool === 'select') {
+            e.preventDefault();
+            pasteAnnotations();
+        }
     });
 
     // Context menu event listeners
@@ -1694,6 +1704,78 @@ function selectAllAnnotations() {
     const currentImageId = images[currentImageIndex]?.id;
     selectedAnnotations = annotations.filter(ann => ann.image_id === currentImageId);
     drawExistingAnnotations();
+}
+
+// Copy and paste functions
+function copyAnnotations() {
+    if (selectedAnnotations.length === 0) {
+        showNotification('No annotations selected to copy', 'error');
+        return;
+    }
+
+    // Deep copy the selected annotations and remove IDs (will be regenerated on paste)
+    const annotationsToCopy = selectedAnnotations.map(annotation => {
+        return {
+            label_category_id: annotation.label_category_id,
+            tool: annotation.tool,
+            coordinates: JSON.parse(JSON.stringify(annotation.coordinates)),
+            confidence: annotation.confidence || 0.5,
+            image_id: images[currentImageIndex].id // Store the source image ID
+        };
+    });
+
+    // Store in localStorage
+    localStorage.setItem('annotation_clipboard', JSON.stringify(annotationsToCopy));
+
+    showNotification(`Copied ${selectedAnnotations.length} annotation(s)`, 'success');
+}
+
+function pasteAnnotations() {
+    const clipboardData = localStorage.getItem('annotation_clipboard');
+    if (!clipboardData) {
+        showNotification('No annotations in clipboard', 'error');
+        return;
+    }
+
+    try {
+        const annotationsToPaste = JSON.parse(clipboardData);
+        if (!Array.isArray(annotationsToPaste) || annotationsToPaste.length === 0) {
+            showNotification('Clipboard is empty', 'error');
+            return;
+        }
+
+        const currentImageId = images[currentImageIndex].id;
+
+        // Create new annotations with fresh IDs
+        const newAnnotations = annotationsToPaste.map(annotation => {
+            const newId = Date.now() + Math.random(); // Generate unique ID
+            return {
+                id: newId,
+                image_id: currentImageId,
+                label_category_id: annotation.label_category_id,
+                tool: annotation.tool,
+                coordinates: annotation.coordinates,
+                confidence: annotation.confidence,
+                created_at: new Date().toISOString()
+            };
+        });
+
+        // Add to annotations array
+        newAnnotations.forEach(annotation => {
+            annotations.push(annotation);
+            // Save to database
+            saveAnnotationToDatabase(annotation);
+        });
+
+        // Select the newly pasted annotations
+        selectedAnnotations = newAnnotations;
+        drawExistingAnnotations();
+
+        showNotification(`Pasted ${newAnnotations.length} annotation(s)`, 'success');
+    } catch (error) {
+        console.error('Error pasting annotations:', error);
+        showNotification('Error pasting annotations', 'error');
+    }
 }
 
 // Annotation dragging functions
