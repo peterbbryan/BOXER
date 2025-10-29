@@ -1863,8 +1863,10 @@ function dragAnnotations(x, y) {
     console.log('Dragging', annotationOriginalPositions.length, 'annotations, delta:', deltaX, deltaY);
 
     // Update all selected annotations based on their original positions
-    annotationOriginalPositions.forEach(({ annotation, originalCoords }) => {
+    console.log('Updating', annotationOriginalPositions.length, 'annotations');
+    annotationOriginalPositions.forEach(({ annotation, originalCoords }, index) => {
         const coords = annotation.coordinates;
+        console.log(`Annotation ${index}: tool=${annotation.tool}, originalCoords=`, originalCoords);
 
         if (annotation.tool === 'bbox') {
             // For bounding boxes, move both start and end points
@@ -1881,6 +1883,7 @@ function dragAnnotations(x, y) {
             coords.startY = clampedStart.y;
             coords.endX = clampedEnd.x;
             coords.endY = clampedEnd.y;
+            console.log(`  Updated bbox to:`, coords);
         } else if (annotation.tool === 'point') {
             // For points, move the center
             const newX = originalCoords.x + deltaX;
