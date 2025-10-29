@@ -1722,8 +1722,12 @@ function updateImageTransform() {
     canvas.height = containerRect.height;
 
     // Set image size and position using transforms
+    // Ensure the image maintains its natural aspect ratio
     img.style.width = `${img.naturalWidth}px`;
     img.style.height = `${img.naturalHeight}px`;
+    img.style.maxWidth = 'none';
+    img.style.maxHeight = 'none';
+    img.style.objectFit = 'none'; // Prevent any object-fit scaling
     img.style.left = '0px';
     img.style.top = '0px';
     img.style.position = 'absolute';
