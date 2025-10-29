@@ -65,6 +65,28 @@ def run_performance_tests():
     return result.wasSuccessful(), len(result.failures), len(result.errors)
 
 
+def run_e2e_tests():
+    """Run end-to-end tests"""
+    print("\n" + "=" * 60)
+    print("RUNNING END-TO-END TESTS")
+    print("=" * 60)
+
+    # Check if e2e tests exist
+    start_dir = os.path.join(os.path.dirname(__file__), "e2e")
+    if not os.path.exists(start_dir) or not os.listdir(start_dir):
+        print("No end-to-end tests found - skipping")
+        return True, 0, 0
+
+    # Discover and run e2e tests
+    loader = unittest.TestLoader()
+    suite = loader.discover(start_dir, pattern="test_*.py")
+
+    runner = unittest.TextTestRunner(verbosity=2)
+    result = runner.run(suite)
+
+    return result.wasSuccessful(), len(result.failures), len(result.errors)
+
+
 def main():
     """Main test runner"""
     print("VibeCortex Test Suite")
@@ -87,6 +109,7 @@ def main():
         performance_failures,
         performance_errors,
     ) = run_performance_tests()
+    e2e_success, e2e_failures, e2e_errors = run_e2e_tests()
 
     end_time = time.time()
     total_time = end_time - start_time
@@ -96,9 +119,13 @@ def main():
     print("TEST SUMMARY")
     print("=" * 60)
 
-    total_failures = unit_failures + integration_failures + performance_failures
-    total_errors = unit_errors + integration_errors + performance_errors
-    total_tests_passed = unit_success and integration_success and performance_success
+    total_failures = (
+        unit_failures + integration_failures + performance_failures + e2e_failures
+    )
+    total_errors = unit_errors + integration_errors + performance_errors + e2e_errors
+    total_tests_passed = (
+        unit_success and integration_success and performance_success and e2e_success
+    )
 
     print(
         f"Unit Tests:        {'PASSED' if unit_success else 'FAILED'} ({unit_failures} failures, {unit_errors} errors)"
@@ -108,6 +135,9 @@ def main():
     )
     print(
         f"Performance Tests: {'PASSED' if performance_success else 'FAILED'} ({performance_failures} failures, {performance_errors} errors)"
+    )
+    print(
+        f"End-to-End Tests:  {'PASSED' if e2e_success else 'FAILED'} ({e2e_failures} failures, {e2e_errors} errors)"
     )
     print(f"Total Time:        {total_time:.2f} seconds")
     print(f"Overall Result:    {'PASSED' if total_tests_passed else 'FAILED'}")
