@@ -127,6 +127,10 @@
                         <button id="point-tool" class="tool-btn px-3 py-1 rounded text-sm font-medium text-gray-300 hover:bg-gray-700">
                             <i class="fas fa-circle mr-1"></i>Point
                         </button>
+                        <div class="w-px h-6 bg-gray-600"></div>
+                        <button id="pan-tool" class="tool-btn px-3 py-1 rounded text-sm font-medium text-gray-300 hover:bg-gray-700" title="Pan tool (Hold and drag to pan)">
+                            <i class="fas fa-hand-paper mr-1"></i>Pan
+                        </button>
                         <button id="clear-tool" class="tool-btn px-3 py-1 rounded text-sm font-medium text-red-400 hover:bg-red-900 hover:text-red-300">
                             <i class="fas fa-trash mr-1"></i>Clear All
                         </button>
@@ -320,6 +324,16 @@ function setupEventListeners() {
             this.classList.remove('text-gray-300', 'hover:bg-gray-700');
             currentTool = this.id.replace('-tool', '');
 
+            // Update cursor based on tool
+            const canvas = document.getElementById('annotation-canvas');
+            if (currentTool === 'pan') {
+                canvas.style.cursor = 'grab';
+            } else if (currentTool === 'select') {
+                canvas.style.cursor = 'default';
+            } else {
+                canvas.style.cursor = 'crosshair';
+            }
+
             // Reset polygon drawing when switching tools
             if (currentTool !== 'polygon') {
                 isDrawingPolygon = false;
@@ -411,7 +425,8 @@ function setupEventListeners() {
 
     // Pan functionality
     canvas.addEventListener('mousedown', function(e) {
-        if (e.button === 1 || (e.button === 0 && e.ctrlKey)) { // Middle mouse or Ctrl+left click
+        // Pan if pan tool is selected, or middle mouse, or Ctrl+left click
+        if (currentTool === 'pan' || e.button === 1 || (e.button === 0 && e.ctrlKey)) {
             isPanning = true;
             lastPanX = e.clientX;
             lastPanY = e.clientY;
@@ -970,6 +985,11 @@ function setupCanvas() {
 }
 
 function startDrawing(e) {
+    // Don't handle drawing if pan tool is selected (panning is handled separately)
+    if (currentTool === 'pan') {
+        return;
+    }
+
     const canvas = document.getElementById('annotation-canvas');
     const ctx = canvas.getContext('2d');
     const img = document.getElementById('main-image');
