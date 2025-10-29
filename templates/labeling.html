@@ -1115,8 +1115,8 @@ function startDrawing(e) {
                 showAnnotationContextMenu();
             }
 
-            // Only start dragging if the annotation was already selected before this click
-            if (isAlreadySelected && selectedAnnotations.length > 0) {
+            // Start dragging if any annotation is selected (including newly selected ones)
+            if (selectedAnnotations.length > 0) {
                 startDraggingAnnotations(x, y);
             }
         } else {
