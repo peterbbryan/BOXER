@@ -945,6 +945,7 @@ function setupCanvas() {
 
 function startDrawing(e) {
     const canvas = document.getElementById('annotation-canvas');
+    const ctx = canvas.getContext('2d');
     const img = document.getElementById('main-image');
     const rect = canvas.getBoundingClientRect();
     const x = (e.clientX - rect.left - panX) / zoomLevel;
@@ -971,7 +972,10 @@ function startDrawing(e) {
             // Start new polygon
             isDrawingPolygon = true;
             polygonPoints = [{ x, y }];
-            drawPolygonPreview(); // Draw the first point immediately
+            // Convert to screen coordinates for preview
+            const screenX = x * zoomLevel + panX;
+            const screenY = y * zoomLevel + panY;
+            drawPolygonPreview(ctx, screenX, screenY, screenX, screenY); // Draw the first point immediately
         } else {
             // Check if clicking near the first point to close polygon
             if (polygonPoints.length >= 3) {
@@ -985,7 +989,10 @@ function startDrawing(e) {
 
             // Add point to existing polygon
             polygonPoints.push({ x, y });
-            drawPolygonPreview();
+            // Convert to screen coordinates for preview
+            const screenX = x * zoomLevel + panX;
+            const screenY = y * zoomLevel + panY;
+            drawPolygonPreview(ctx, screenX, screenY, screenX, screenY);
         }
         return;
     }
@@ -1010,16 +1017,24 @@ function draw(e) {
     // Draw existing annotations
     drawExistingAnnotations();
 
-    // Draw current annotation
+    // Draw current annotation preview in screen coordinates
+    const screenStartX = startX * zoomLevel + panX;
+    const screenStartY = startY * zoomLevel + panY;
+    const screenCurrentX = currentX * zoomLevel + panX;
+    const screenCurrentY = currentY * zoomLevel + panY;
+
     if (currentTool === 'bbox') {
         ctx.strokeStyle = getCategoryColor(selectedCategory);
         ctx.lineWidth = 2;
-        ctx.strokeRect(startX, startY, currentX - startX, currentY - startY);
+        ctx.strokeRect(screenStartX, screenStartY, screenCurrentX - screenStartX, screenCurrentY - screenStartY);
     } else if (currentTool === 'point') {
         ctx.fillStyle = getCategoryColor(selectedCategory);
         ctx.beginPath();
-        ctx.arc(startX, startY, 5, 0, 2 * Math.PI);
+        ctx.arc(screenStartX, screenStartY, 5, 0, 2 * Math.PI);
         ctx.fill();
+    } else if (currentTool === 'polygon') {
+        // Draw polygon preview
+        drawPolygonPreview(ctx, screenStartX, screenStartY, screenCurrentX, screenCurrentY);
     }
 }
 
@@ -1050,25 +1065,26 @@ function stopDrawing(e) {
     saveAnnotationToDatabase(annotation);
 }
 
-function drawPolygonPreview() {
-    const canvas = document.getElementById('annotation-canvas');
-    const ctx = canvas.getContext('2d');
-
-    // Clear canvas
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // Draw existing annotations
-    drawExistingAnnotations();
-
+function drawPolygonPreview(ctx, screenStartX, screenStartY, screenCurrentX, screenCurrentY) {
     // Draw polygon preview
     if (polygonPoints.length > 1) {
         ctx.strokeStyle = getCategoryColor(selectedCategory);
         ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.moveTo(polygonPoints[0].x, polygonPoints[0].y);
+
+        // Convert first point to screen coordinates
+        const screenX = polygonPoints[0].x * zoomLevel + panX;
+        const screenY = polygonPoints[0].y * zoomLevel + panY;
+        ctx.moveTo(screenX, screenY);
+
         for (let i = 1; i < polygonPoints.length; i++) {
-            ctx.lineTo(polygonPoints[i].x, polygonPoints[i].y);
+            const screenX = polygonPoints[i].x * zoomLevel + panX;
+            const screenY = polygonPoints[i].y * zoomLevel + panY;
+            ctx.lineTo(screenX, screenY);
         }
+
+        // Draw line to current mouse position
+        ctx.lineTo(screenCurrentX, screenCurrentY);
         ctx.stroke();
     }
 
@@ -1076,7 +1092,9 @@ function drawPolygonPreview() {
     if (polygonPoints.length >= 1) {
         ctx.fillStyle = getCategoryColor(selectedCategory);
         ctx.beginPath();
-        ctx.arc(polygonPoints[0].x, polygonPoints[0].y, 5, 0, 2 * Math.PI);
+        const screenX = polygonPoints[0].x * zoomLevel + panX;
+        const screenY = polygonPoints[0].y * zoomLevel + panY;
+        ctx.arc(screenX, screenY, 5, 0, 2 * Math.PI);
         ctx.fill();
     }
 
@@ -1084,8 +1102,10 @@ function drawPolygonPreview() {
     ctx.fillStyle = getCategoryColor(selectedCategory);
     polygonPoints.forEach((point, index) => {
         if (index > 0) { // Skip first point since it's already drawn above
+            const screenX = point.x * zoomLevel + panX;
+            const screenY = point.y * zoomLevel + panY;
             ctx.beginPath();
-            ctx.arc(point.x, point.y, 3, 0, 2 * Math.PI);
+            ctx.arc(screenX, screenY, 3, 0, 2 * Math.PI);
             ctx.fill();
         }
     });
@@ -1093,11 +1113,13 @@ function drawPolygonPreview() {
     // Draw closing indicator around first point if we have enough points
     if (polygonPoints.length >= 3) {
         const firstPoint = polygonPoints[0];
+        const screenX = firstPoint.x * zoomLevel + panX;
+        const screenY = firstPoint.y * zoomLevel + panY;
         ctx.strokeStyle = getCategoryColor(selectedCategory);
         ctx.lineWidth = 1;
         ctx.setLineDash([5, 5]); // Dashed line
         ctx.beginPath();
-        ctx.arc(firstPoint.x, firstPoint.y, 15, 0, 2 * Math.PI);
+        ctx.arc(screenX, screenY, 15, 0, 2 * Math.PI);
         ctx.stroke();
         ctx.setLineDash([]); // Reset line dash
     }
