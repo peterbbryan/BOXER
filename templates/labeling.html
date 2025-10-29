@@ -1138,11 +1138,6 @@ function drawExistingAnnotations() {
     // Clear the canvas first
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Apply zoom and pan transformations
-    ctx.save();
-    ctx.translate(panX, panY);
-    ctx.scale(zoomLevel, zoomLevel);
-
     const currentImageId = images[currentImageIndex]?.id;
 
     annotations.forEach(annotation => {
@@ -1157,16 +1152,26 @@ function drawExistingAnnotations() {
 
         if (annotation.tool === 'bbox') {
             const { startX, startY, endX, endY } = annotation.coordinates;
-            ctx.strokeRect(startX, startY, endX - startX, endY - startY);
+            // Convert image coordinates to screen coordinates
+            const screenStartX = startX * zoomLevel + panX;
+            const screenStartY = startY * zoomLevel + panY;
+            const screenEndX = endX * zoomLevel + panX;
+            const screenEndY = endY * zoomLevel + panY;
+
+            ctx.strokeRect(screenStartX, screenStartY, screenEndX - screenStartX, screenEndY - screenStartY);
 
             // Draw selection handles if selected
             if (isSelected) {
-                drawSelectionHandles(ctx, startX, startY, endX, endY);
+                drawSelectionHandles(ctx, screenStartX, screenStartY, screenEndX, screenEndY);
             }
         } else if (annotation.tool === 'point') {
             const { startX, startY } = annotation.coordinates;
+            // Convert image coordinates to screen coordinates
+            const screenX = startX * zoomLevel + panX;
+            const screenY = startY * zoomLevel + panY;
+
             ctx.beginPath();
-            ctx.arc(startX, startY, isSelected ? 7 : 5, 0, 2 * Math.PI);
+            ctx.arc(screenX, screenY, isSelected ? 7 : 5, 0, 2 * Math.PI);
             ctx.fill();
 
             // Draw selection ring if selected
@@ -1174,32 +1179,37 @@ function drawExistingAnnotations() {
                 ctx.strokeStyle = '#ffffff';
                 ctx.lineWidth = 2;
                 ctx.beginPath();
-                ctx.arc(startX, startY, 10, 0, 2 * Math.PI);
+                ctx.arc(screenX, screenY, 10, 0, 2 * Math.PI);
                 ctx.stroke();
             }
         } else if (annotation.tool === 'polygon') {
             const { points } = annotation.coordinates;
             if (points && points.length > 2) {
                 ctx.beginPath();
-                ctx.moveTo(points[0].x, points[0].y);
+                // Convert first point to screen coordinates
+                const screenX = points[0].x * zoomLevel + panX;
+                const screenY = points[0].y * zoomLevel + panY;
+                ctx.moveTo(screenX, screenY);
+
                 for (let i = 1; i < points.length; i++) {
-                    ctx.lineTo(points[i].x, points[i].y);
+                    const screenX = points[i].x * zoomLevel + panX;
+                    const screenY = points[i].y * zoomLevel + panY;
+                    ctx.lineTo(screenX, screenY);
                 }
                 ctx.closePath();
                 ctx.stroke();
 
                 // Draw points
                 points.forEach(point => {
+                    const screenX = point.x * zoomLevel + panX;
+                    const screenY = point.y * zoomLevel + panY;
                     ctx.beginPath();
-                    ctx.arc(point.x, point.y, 3, 0, 2 * Math.PI);
+                    ctx.arc(screenX, screenY, 3, 0, 2 * Math.PI);
                     ctx.fill();
                 });
             }
         }
     });
-
-    // Restore canvas state
-    ctx.restore();
 }
 
 function drawSelectionHandles(ctx, startX, startY, endX, endY) {
