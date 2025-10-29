@@ -6,6 +6,10 @@
 <!-- Hide navigation for labeling interface -->
 {% endblock %}
 
+{% block footer %}
+<!-- Hide footer for labeling interface -->
+{% endblock %}
+
 {% block content %}
 <div class="h-screen flex flex-col">
     <!-- Header -->
@@ -24,6 +28,17 @@
                        data-project-id="{{ project.id }}">
             </div>
             <div class="flex items-center space-x-4">
+                <div id="username-display" class="text-sm text-gray-300 hidden">
+                    <i class="fas fa-user mr-2"></i><span id="username-text"></span>
+                </div>
+                <div id="username-input-container" class="flex items-center space-x-2">
+                    <input id="username-input" type="text" placeholder="Enter your name" required
+                           class="px-3 py-1 rounded bg-gray-700 text-white text-sm border border-gray-600 focus:border-blue-500 focus:outline-none"
+                           style="width: 200px;">
+                    <button id="save-username" class="px-3 py-1 rounded bg-blue-600 text-white text-sm hover:bg-blue-700 transition-colors">
+                        <i class="fas fa-check mr-1"></i>Save
+                    </button>
+                </div>
                 <div class="text-sm text-gray-400">
                     <span id="current-image">1</span> of <span id="total-images">{{ images|length }}</span>
                 </div>
@@ -261,6 +276,11 @@
 
 {% block extra_js %}
 <script>
+// Page setup (scrolling is enabled)
+document.addEventListener('DOMContentLoaded', function() {
+    // Any page initialization needed
+});
+
 // Data labeling interface JavaScript
 let currentImageIndex = 0;
 let currentTool = 'select';
@@ -268,9 +288,13 @@ let selectedCategory = null;
 let annotations = [];
 let isDrawing = false;
 let startX, startY;
-let selectedAnnotation = null;
+let selectedAnnotations = []; // Array of selected annotations for multi-select
 let polygonPoints = []; // For polygon drawing
 let isDrawingPolygon = false;
+let isDraggingAnnotations = false; // Track if we're dragging selected annotations
+let dragStartX = 0;
+let dragStartY = 0;
+let annotationOriginalPositions = []; // Store original positions when drag starts
 
 // Zoom and pan variables
 let zoomLevel = 1;
@@ -510,9 +534,9 @@ function setupEventListeners() {
                 closeImage();
             }
         }
-        // Delete key to delete selected annotation
-        if (e.key === 'Delete' && selectedAnnotation) {
-            deleteSelectedAnnotation();
+        // Delete key to delete selected annotations
+        if (e.key === 'Delete' && selectedAnnotations.length > 0) {
+            deleteSelectedAnnotations();
         }
         // Enter key to complete polygon
         if (e.key === 'Enter' && currentTool === 'polygon' && isDrawingPolygon) {
@@ -524,11 +548,17 @@ function setupEventListeners() {
             polygonPoints = [];
             drawExistingAnnotations();
         }
+        // Ctrl+A to select all annotations
+        if ((e.ctrlKey || e.metaKey) && e.key === 'a' && currentTool === 'select') {
+            e.preventDefault();
+            selectAllAnnotations();
+            showNotification(`Selected ${selectedAnnotations.length} annotation(s)`, 'success');
+        }
     });
 
     // Context menu event listeners
     document.getElementById('edit-annotation').addEventListener('click', editAnnotation);
-    document.getElementById('delete-annotation').addEventListener('click', deleteSelectedAnnotation);
+    document.getElementById('delete-annotation').addEventListener('click', deleteSelectedAnnotations);
 
     // Zoom and pan event listeners
     document.getElementById('zoom-in').addEventListener('click', zoomIn);
@@ -541,6 +571,48 @@ function setupEventListeners() {
             hideAnnotationContextMenu();
         }
     });
+
+    // Username handling
+    loadUsername();
+
+    document.getElementById('save-username').addEventListener('click', saveUsername);
+    document.getElementById('username-input').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            saveUsername();
+        }
+    });
+}
+
+// Username management
+function loadUsername() {
+    const username = localStorage.getItem('labeler_username');
+    if (username) {
+        document.getElementById('username-text').textContent = username;
+        document.getElementById('username-display').classList.remove('hidden');
+        document.getElementById('username-input-container').classList.add('hidden');
+    } else {
+        document.getElementById('username-display').classList.add('hidden');
+        document.getElementById('username-input-container').classList.remove('hidden');
+    }
+}
+
+function saveUsername() {
+    const usernameInput = document.getElementById('username-input');
+    const username = usernameInput.value.trim();
+
+    if (!username) {
+        showNotification('Please enter your name', 'error');
+        usernameInput.focus();
+        return;
+    }
+
+    localStorage.setItem('labeler_username', username);
+    loadUsername();
+    showNotification(`Welcome, ${username}!`, 'success');
+}
+
+function getUsername() {
+    return localStorage.getItem('labeler_username');
 }
 
 function loadImage(index) {
@@ -550,8 +622,8 @@ function loadImage(index) {
         return;
     }
 
-    // Deselect any selected annotation when switching images
-    deselectAnnotation();
+    // Deselect any selected annotations when switching images
+    deselectAllAnnotations();
 
     // Reset polygon drawing when switching images
     isDrawingPolygon = false;
@@ -1002,10 +1074,29 @@ function startDrawing(e) {
         console.log('Select tool clicked at:', x, y);
         const clickedAnnotation = getAnnotationAtPoint(x, y);
         console.log('Found annotation:', clickedAnnotation);
+
         if (clickedAnnotation) {
-            selectAnnotation(clickedAnnotation);
+            // Check if already selected
+            const isAlreadySelected = selectedAnnotations.some(sel => sel.id === clickedAnnotation.id);
+
+            // Multi-select with Ctrl/Cmd key
+            if (e.ctrlKey || e.metaKey) {
+                toggleAnnotationSelection(clickedAnnotation);
+            } else {
+                // Single select - clear all and select one
+                selectedAnnotations = [clickedAnnotation];
+                drawExistingAnnotations();
+            }
+
+            // Only start dragging if the annotation was already selected before this click
+            if (isAlreadySelected && selectedAnnotations.length > 0) {
+                startDraggingAnnotations(x, y);
+            }
         } else {
-            deselectAnnotation();
+            // Click on empty area - deselect all unless Ctrl is held
+            if (!e.ctrlKey && !e.metaKey) {
+                deselectAllAnnotations();
+            }
         }
         return;
     }
@@ -1049,13 +1140,19 @@ function startDrawing(e) {
 }
 
 function draw(e) {
-    if (!isDrawing || currentTool === 'select') return;
-
     const canvas = document.getElementById('annotation-canvas');
     const ctx = canvas.getContext('2d');
     const rect = canvas.getBoundingClientRect();
     const currentX = (e.clientX - rect.left - panX) / zoomLevel;
     const currentY = (e.clientY - rect.top - panY) / zoomLevel;
+
+    // Handle annotation dragging
+    if (isDraggingAnnotations) {
+        dragAnnotations(currentX, currentY);
+        return;
+    }
+
+    if (!isDrawing || currentTool === 'select') return;
 
     // Clear canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -1085,6 +1182,12 @@ function draw(e) {
 }
 
 function stopDrawing(e) {
+    // Handle annotation drag completion
+    if (isDraggingAnnotations) {
+        stopDraggingAnnotations();
+        return;
+    }
+
     if (!isDrawing || currentTool === 'select') return;
 
     isDrawing = false;
@@ -1225,7 +1328,7 @@ function drawExistingAnnotations() {
     annotations.forEach(annotation => {
         if (annotation.image_id !== currentImageId) return;
 
-        const isSelected = selectedAnnotation && selectedAnnotation.id === annotation.id;
+        const isSelected = selectedAnnotations.some(sel => sel.id === annotation.id);
 
         // Draw annotation
         ctx.strokeStyle = getCategoryColor(annotation.label_category_id);
@@ -1546,26 +1649,159 @@ function isPointInAnnotation(x, y, annotation) {
 }
 
 function selectAnnotation(annotation) {
-    selectedAnnotation = annotation;
+    // Legacy single-select function (for compatibility)
+    selectedAnnotations = [annotation];
     drawExistingAnnotations();
     showAnnotationContextMenu();
 }
 
-function deselectAnnotation() {
-    selectedAnnotation = null;
+function deselectAllAnnotations() {
+    selectedAnnotations = [];
     drawExistingAnnotations();
     hideAnnotationContextMenu();
 }
 
+function toggleAnnotationSelection(annotation) {
+    const index = selectedAnnotations.findIndex(sel => sel.id === annotation.id);
+    if (index !== -1) {
+        // Deselect if already selected
+        selectedAnnotations.splice(index, 1);
+    } else {
+        // Add to selection
+        selectedAnnotations.push(annotation);
+    }
+    drawExistingAnnotations();
+}
+
+function selectAllAnnotations() {
+    const currentImageId = images[currentImageIndex]?.id;
+    selectedAnnotations = annotations.filter(ann => ann.image_id === currentImageId);
+    drawExistingAnnotations();
+}
+
+// Annotation dragging functions
+function startDraggingAnnotations(x, y) {
+    if (selectedAnnotations.length === 0) return;
+
+    isDraggingAnnotations = true;
+    dragStartX = x;
+    dragStartY = y;
+
+    // Store original positions for all selected annotations
+    annotationOriginalPositions = selectedAnnotations.map(annotation => {
+        const coords = annotation.coordinates;
+        return {
+            annotation: annotation,
+            originalCoords: JSON.parse(JSON.stringify(coords)) // Deep copy
+        };
+    });
+
+    // Change cursor to indicate dragging
+    const canvas = document.getElementById('annotation-canvas');
+    canvas.style.cursor = 'grabbing';
+}
+
+function dragAnnotations(x, y) {
+    if (selectedAnnotations.length === 0) return;
+
+    const deltaX = x - dragStartX;
+    const deltaY = y - dragStartY;
+
+    // Update all selected annotations based on their original positions
+    annotationOriginalPositions.forEach(({ annotation, originalCoords }) => {
+        const coords = annotation.coordinates;
+
+        if (annotation.tool === 'bbox') {
+            // For bounding boxes, move both start and end points
+            const newStartX = originalCoords.startX + deltaX;
+            const newStartY = originalCoords.startY + deltaY;
+            const newEndX = originalCoords.endX + deltaX;
+            const newEndY = originalCoords.endY + deltaY;
+
+            // Clamp to image bounds
+            const clampedStart = clampToImageBounds(newStartX, newStartY);
+            const clampedEnd = clampToImageBounds(newEndX, newEndY);
+
+            coords.startX = clampedStart.x;
+            coords.startY = clampedStart.y;
+            coords.endX = clampedEnd.x;
+            coords.endY = clampedEnd.y;
+        } else if (annotation.tool === 'point') {
+            // For points, move the center
+            const newX = originalCoords.x + deltaX;
+            const newY = originalCoords.y + deltaY;
+
+            // Clamp to image bounds
+            const clamped = clampToImageBounds(newX, newY);
+            coords.x = clamped.x;
+            coords.y = clamped.y;
+        } else if (annotation.tool === 'polygon') {
+            // For polygons, move all points
+            const newPoints = originalCoords.points.map(point => {
+                const clamped = clampToImageBounds(point.x + deltaX, point.y + deltaY);
+                return { x: clamped.x, y: clamped.y };
+            });
+            coords.points = newPoints;
+        }
+    });
+
+    // Redraw to show new positions
+    drawExistingAnnotations();
+}
+
+function stopDraggingAnnotations() {
+    if (!isDraggingAnnotations) return;
+
+    isDraggingAnnotations = false;
+    dragStartX = 0;
+    dragStartY = 0;
+
+    // Reset cursor
+    const canvas = document.getElementById('annotation-canvas');
+    canvas.style.cursor = currentTool === 'pan' ? 'grab' : (currentTool === 'select' ? 'default' : 'crosshair');
+
+    // Save all dragged annotations to database
+    const promises = selectedAnnotations.map(annotation => {
+        // Only save to database if it has a database ID (persisted annotation)
+        if (annotation.id && typeof annotation.id === 'number' && annotation.id < 1000000) {
+            return fetch(`/api/annotations/${annotation.id}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    annotation_data: {
+                        tool: annotation.tool,
+                        coordinates: annotation.coordinates
+                    },
+                    confidence: annotation.confidence || 0.5
+                })
+            });
+        }
+        return Promise.resolve();
+    });
+
+    Promise.all(promises)
+        .then(() => {
+            console.log(`${selectedAnnotations.length} annotation(s) moved and saved`);
+        })
+        .catch(error => {
+            console.error('Error saving annotation positions:', error);
+            showNotification('Error saving annotation positions', 'error');
+        });
+
+    annotationOriginalPositions = [];
+}
+
 function showAnnotationContextMenu() {
     const contextMenu = document.getElementById('annotation-context-menu');
-    if (contextMenu && selectedAnnotation) {
-        // Position the context menu near the selected annotation
+    if (contextMenu && selectedAnnotations.length > 0) {
+        // Position the context menu near the first selected annotation
         const canvas = document.getElementById('annotation-canvas');
         const rect = canvas.getBoundingClientRect();
 
-        // Calculate position based on annotation center
-        const coords = selectedAnnotation.coordinates;
+        // Calculate position based on annotation center (use first selected)
+        const coords = selectedAnnotations[0].coordinates;
         const centerX = (coords.startX + coords.endX) / 2;
         const centerY = (coords.startY + coords.endY) / 2;
 
@@ -1607,16 +1843,22 @@ function hideAnnotationContextMenu() {
 }
 
 function editAnnotation() {
-    if (!selectedAnnotation) return;
+    if (selectedAnnotations.length === 0) return;
 
-    // For now, just show a simple prompt for editing category
+    // For now, just show a simple prompt for editing category (only works for single selection)
+    if (selectedAnnotations.length > 1) {
+        showNotification('Editing multiple annotations is not yet supported', 'error');
+        return;
+    }
+
+    const annotation = selectedAnnotations[0];
     const newCategoryName = prompt('Edit annotation category:',
-        labelCategories.find(cat => cat.id === selectedAnnotation.label_category_id)?.name || '');
+        labelCategories.find(cat => cat.id === annotation.label_category_id)?.name || '');
 
     if (newCategoryName && newCategoryName.trim()) {
         const newCategory = labelCategories.find(cat => cat.name.toLowerCase() === newCategoryName.toLowerCase());
         if (newCategory) {
-            selectedAnnotation.label_category_id = newCategory.id;
+            annotation.label_category_id = newCategory.id;
             drawExistingAnnotations();
             showNotification('Annotation updated!', 'success');
         } else {
@@ -1626,45 +1868,53 @@ function editAnnotation() {
 }
 
 function deleteSelectedAnnotation() {
-    if (!selectedAnnotation) {
+    // Legacy function name for compatibility
+    deleteSelectedAnnotations();
+}
+
+function deleteSelectedAnnotations() {
+    if (selectedAnnotations.length === 0) {
         return;
     }
 
-    if (confirm('Are you sure you want to delete this annotation?')) {
+    const count = selectedAnnotations.length;
+    const message = count === 1
+        ? 'Are you sure you want to delete this annotation?'
+        : `Are you sure you want to delete ${count} annotations?`;
 
-        // Remove from local array
-        const index = annotations.findIndex(ann => ann.id === selectedAnnotation.id);
-        if (index !== -1) {
-            annotations.splice(index, 1);
-        }
+    if (confirm(message)) {
+        const promises = [];
 
-        // Delete from database if it has a database ID (small numbers are database IDs, large numbers are temporary IDs)
-        if (selectedAnnotation.id && typeof selectedAnnotation.id === 'number' && selectedAnnotation.id < 1000000) {
-            fetch(`/api/annotations/${selectedAnnotation.id}`, {
-                method: 'DELETE'
-            })
-            .then(response => {
-                return response.json();
-            })
-            .then(data => {
-                showNotification('Annotation deleted!', 'success');
+        selectedAnnotations.forEach(annotation => {
+            // Remove from local array
+            const index = annotations.findIndex(ann => ann.id === annotation.id);
+            if (index !== -1) {
+                annotations.splice(index, 1);
+            }
+
+            // Delete from database if it has a database ID (small numbers are database IDs, large numbers are temporary IDs)
+            if (annotation.id && typeof annotation.id === 'number' && annotation.id < 1000000) {
+                promises.push(
+                    fetch(`/api/annotations/${annotation.id}`, {
+                        method: 'DELETE'
+                    })
+                );
+            }
+        });
+
+        // Wait for all deletions to complete
+        Promise.all(promises)
+            .then(() => {
+                showNotification(`${count} annotation(s) deleted!`, 'success');
             })
             .catch(error => {
-                console.error('Error deleting annotation from database:', error);
-                showNotification('Error deleting annotation', 'error');
+                console.error('Error deleting annotations from database:', error);
+                showNotification('Error deleting annotations', 'error');
             });
-        } else {
-            showNotification('Annotation deleted!', 'success');
-        }
 
-
-        // Force canvas redraw
-        const canvas = document.getElementById('annotation-canvas');
-        const ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
+        // Clear selection and redraw
+        deselectAllAnnotations();
         drawExistingAnnotations();
-        deselectAnnotation();
     }
 }
 
@@ -1705,7 +1955,7 @@ function clearAllAnnotations() {
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
 
                 // Deselect any selected annotation
-                deselectAnnotation();
+                deselectAllAnnotations();
 
                 showNotification(`Cleared ${imageAnnotations.length} annotation(s)`, 'success');
             })

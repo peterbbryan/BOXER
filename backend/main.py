@@ -98,6 +98,12 @@ class AnnotationCreate(BaseModel):
     confidence: float = 1.0
 
 
+class AnnotationUpdate(BaseModel):
+    annotation_data: Optional[dict] = None
+    confidence: Optional[float] = None
+    is_verified: Optional[bool] = None
+
+
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request) -> HTMLResponse:
     """Serve the main labeling interface.
@@ -603,6 +609,55 @@ async def delete_annotation(annotation_id: int, db: Session = Depends(get_db)):
     db.commit()
 
     return {"message": "Annotation deleted successfully"}
+
+
+@app.put("/api/annotations/{annotation_id}")
+async def update_annotation(
+    annotation_id: int, update_data: AnnotationUpdate, db: Session = Depends(get_db)
+):
+    """Update an annotation.
+
+    Args:
+        annotation_id: ID of the annotation to update.
+        update_data: Annotation update data.
+        db: Database session dependency.
+
+    Returns:
+        Dict containing success message and updated annotation data.
+
+    Raises:
+        HTTPException: If annotation not found.
+    """
+    # Find the annotation
+    annotation = db.query(Annotation).filter(Annotation.id == annotation_id).first()
+
+    if not annotation:
+        raise HTTPException(status_code=404, detail="Annotation not found")
+
+    # Update annotation fields
+    if update_data.annotation_data is not None:
+        annotation.annotation_data = update_data.annotation_data
+    if update_data.confidence is not None:
+        annotation.confidence = update_data.confidence
+    if update_data.is_verified is not None:
+        annotation.is_verified = update_data.is_verified
+
+    # Commit changes
+    db.commit()
+    db.refresh(annotation)
+
+    # Build response
+    response_data = {
+        "message": "Annotation updated successfully",
+        "annotation_id": annotation.id,
+    }
+
+    # Add updated annotation data
+    if annotation.annotation_data and isinstance(annotation.annotation_data, dict):
+        response_data["tool"] = annotation.annotation_data.get("tool")
+        response_data["coordinates"] = annotation.annotation_data.get("coordinates")
+
+    return response_data
 
 
 if __name__ == "__main__":
