@@ -1496,6 +1496,11 @@ function loadImageAnnotations(imageId) {
 
 function saveAnnotationToDatabase(annotation) {
     // Save a single annotation to the database
+    const annotationData = {
+        tool: annotation.tool,
+        coordinates: annotation.coordinates
+    };
+
     fetch('/api/annotations', {
         method: 'POST',
         headers: {
@@ -1504,14 +1509,15 @@ function saveAnnotationToDatabase(annotation) {
         body: JSON.stringify({
             image_id: annotation.image_id,
             label_category_id: annotation.label_category_id,
-            annotation_data: annotation.coordinates,
-            confidence: 1.0
+            annotation_data: annotationData,
+            confidence: annotation.confidence || 1.0
         })
     })
     .then(response => response.json())
     .then(data => {
         // Update the annotation with the database ID
         annotation.id = data.annotation_id;
+        console.log('Annotation saved to database with ID:', data.annotation_id);
     })
     .catch(error => {
         console.error('Error saving annotation:', error);
@@ -1787,6 +1793,7 @@ function pasteAnnotations() {
 function startDraggingAnnotations(x, y) {
     if (selectedAnnotations.length === 0) return;
 
+    console.log('Starting drag for', selectedAnnotations.length, 'annotations');
     isDraggingAnnotations = true;
     dragStartX = x;
     dragStartY = y;
@@ -1800,6 +1807,8 @@ function startDraggingAnnotations(x, y) {
         };
     });
 
+    console.log('Stored original positions for', annotationOriginalPositions.length, 'annotations');
+
     // Change cursor to indicate dragging
     const canvas = document.getElementById('annotation-canvas');
     canvas.style.cursor = 'grabbing';
@@ -1810,6 +1819,8 @@ function dragAnnotations(x, y) {
 
     const deltaX = x - dragStartX;
     const deltaY = y - dragStartY;
+
+    console.log('Dragging', annotationOriginalPositions.length, 'annotations, delta:', deltaX, deltaY);
 
     // Update all selected annotations based on their original positions
     annotationOriginalPositions.forEach(({ annotation, originalCoords }) => {
