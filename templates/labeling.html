@@ -1496,10 +1496,41 @@ function loadImageAnnotations(imageId) {
 
 function saveAnnotationToDatabase(annotation) {
     // Save a single annotation to the database
-    const annotationData = {
-        tool: annotation.tool,
-        coordinates: annotation.coordinates
-    };
+    let annotationData;
+
+    // Handle different coordinate structures
+    if (annotation.tool === 'bbox') {
+        annotationData = {
+            tool: annotation.tool,
+            coordinates: {
+                startX: annotation.coordinates.startX,
+                startY: annotation.coordinates.startY,
+                endX: annotation.coordinates.endX,
+                endY: annotation.coordinates.endY
+            }
+        };
+    } else if (annotation.tool === 'point') {
+        annotationData = {
+            tool: annotation.tool,
+            coordinates: {
+                x: annotation.coordinates.x,
+                y: annotation.coordinates.y
+            }
+        };
+    } else if (annotation.tool === 'polygon') {
+        annotationData = {
+            tool: annotation.tool,
+            coordinates: {
+                points: annotation.coordinates.points
+            }
+        };
+    } else {
+        // Fallback for pasted annotations that already have the right structure
+        annotationData = {
+            tool: annotation.tool,
+            coordinates: annotation.coordinates
+        };
+    }
 
     fetch('/api/annotations', {
         method: 'POST',
