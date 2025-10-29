@@ -1457,28 +1457,36 @@ function loadImageAnnotations(imageId) {
     fetch(`/api/annotations/${imageId}`)
         .then(response => response.json())
         .then(data => {
+            console.log('Loading annotations for image', imageId, ':', data.annotations);
+
             // Convert database annotations to frontend format
             const loadedAnnotations = (data.annotations || []).map(dbAnnotation => {
-                // Determine tool type based on coordinates structure
-                let tool = 'bbox'; // Default
-                if (dbAnnotation.annotation_data.points) {
-                    tool = 'polygon';
-                } else if (dbAnnotation.annotation_data.startX !== undefined &&
-                          dbAnnotation.annotation_data.endX === undefined) {
-                    tool = 'point';
-                } else if (dbAnnotation.annotation_data.startX !== undefined &&
-                          dbAnnotation.annotation_data.endX !== undefined &&
-                          dbAnnotation.annotation_data.startX === dbAnnotation.annotation_data.endX &&
-                          dbAnnotation.annotation_data.startY === dbAnnotation.annotation_data.endY) {
-                    tool = 'point';
+                // Handle new format where annotation_data is {tool, coordinates}
+                let tool, coordinates;
+
+                if (dbAnnotation.annotation_data && dbAnnotation.annotation_data.tool) {
+                    // New format: {tool, coordinates}
+                    tool = dbAnnotation.annotation_data.tool;
+                    coordinates = dbAnnotation.annotation_data.coordinates;
+                } else {
+                    // Legacy format: annotation_data IS the coordinates, determine tool from structure
+                    tool = 'bbox'; // Default
+                    if (dbAnnotation.annotation_data && dbAnnotation.annotation_data.points) {
+                        tool = 'polygon';
+                    } else if (dbAnnotation.annotation_data && dbAnnotation.annotation_data.x !== undefined) {
+                        tool = 'point';
+                    }
+                    coordinates = dbAnnotation.annotation_data;
                 }
+
+                console.log('Loaded annotation:', { id: dbAnnotation.id, tool, coordinates });
 
                 return {
                     id: dbAnnotation.id,
                     image_id: dbAnnotation.image_id,
                     label_category_id: dbAnnotation.label_category_id,
                     tool: tool,
-                    coordinates: dbAnnotation.annotation_data,
+                    coordinates: coordinates,
                     created_at: dbAnnotation.created_at
                 };
             });
@@ -1487,6 +1495,7 @@ function loadImageAnnotations(imageId) {
             annotations = annotations.filter(ann => ann.image_id !== imageId);
             annotations = annotations.concat(loadedAnnotations);
 
+            console.log('Total annotations after load:', annotations.length);
             drawExistingAnnotations();
         })
         .catch(error => {
