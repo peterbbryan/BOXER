@@ -1683,14 +1683,17 @@ function fitToScreen() {
     const img = document.getElementById('main-image');
     const canvasContainer = document.getElementById('canvas-container');
 
+    // Log function entry
+    logDebug('fitToScreen', 'Function called');
+
     if (!img || img.classList.contains('hidden')) {
-        console.log('No image loaded or image is hidden');
+        logDebug('fitToScreen', 'No image loaded or image is hidden');
         return;
     }
 
     // Wait for image to be fully loaded
     if (!img.complete || img.naturalWidth === 0) {
-        console.log('Image not fully loaded, waiting...');
+        logDebug('fitToScreen', 'Image not fully loaded, waiting...');
         img.onload = () => fitToScreen();
         return;
     }
@@ -1703,8 +1706,8 @@ function fitToScreen() {
     const imgWidth = img.naturalWidth;
     const imgHeight = img.naturalHeight;
 
-    console.log('Container dimensions:', containerWidth, 'x', containerHeight);
-    console.log('Image dimensions:', imgWidth, 'x', imgHeight);
+    logDebug('fitToScreen', `Container dimensions: ${containerWidth}x${containerHeight}`);
+    logDebug('fitToScreen', `Image dimensions: ${imgWidth}x${imgHeight}`);
 
     if (imgWidth && imgHeight) {
         // Calculate scale to fit the container with padding
@@ -1712,7 +1715,8 @@ function fitToScreen() {
         const scaleY = containerHeight / imgHeight;
         zoomLevel = Math.min(scaleX, scaleY) * 0.9; // 0.9 for some padding
 
-        console.log('Calculated zoom level:', zoomLevel);
+        logDebug('fitToScreen', `Scale factors - X: ${scaleX}, Y: ${scaleY}`);
+        logDebug('fitToScreen', `Calculated zoom level: ${zoomLevel}`);
 
         // Center the image in the canvas container
         const scaledWidth = imgWidth * zoomLevel;
@@ -1720,11 +1724,13 @@ function fitToScreen() {
         panX = (containerWidth - scaledWidth) / 2;
         panY = (containerHeight - scaledHeight) / 2;
 
-        console.log('Calculated pan:', panX, panY);
+        logDebug('fitToScreen', `Scaled dimensions: ${scaledWidth}x${scaledHeight}`);
+        logDebug('fitToScreen', `Calculated pan: X=${panX}, Y=${panY}`);
 
         updateImageTransform();
+        logDebug('fitToScreen', 'Transform applied successfully');
     } else {
-        console.log('Invalid image dimensions:', imgWidth, imgHeight);
+        logError('fitToScreen', `Invalid image dimensions: ${imgWidth}x${imgHeight}`);
     }
 }
 
@@ -1740,7 +1746,7 @@ function updateImageTransform() {
     canvas.width = containerRect.width;
     canvas.height = containerRect.height;
 
-    console.log('updateImageTransform - zoomLevel:', zoomLevel, 'panX:', panX, 'panY:', panY);
+    logDebug('updateImageTransform', `zoomLevel: ${zoomLevel}, panX: ${panX}, panY: ${panY}`);
 
     // Set image size and position using transforms
     // Ensure the image maintains its natural aspect ratio
@@ -1755,10 +1761,26 @@ function updateImageTransform() {
     img.style.transform = `translate(${panX}px, ${panY}px) scale(${zoomLevel})`;
     img.style.transformOrigin = '0 0';
 
-    console.log('Applied transform:', img.style.transform);
+    logDebug('updateImageTransform', `Applied transform: ${img.style.transform}`);
 
     // Redraw annotations
     drawExistingAnnotations();
+}
+
+// Logging functions
+function logDebug(functionName, message) {
+    const timestamp = new Date().toISOString();
+    console.log(`[${timestamp}] DEBUG [${functionName}]: ${message}`);
+}
+
+function logError(functionName, message) {
+    const timestamp = new Date().toISOString();
+    console.error(`[${timestamp}] ERROR [${functionName}]: ${message}`);
+}
+
+function logInfo(functionName, message) {
+    const timestamp = new Date().toISOString();
+    console.info(`[${timestamp}] INFO [${functionName}]: ${message}`);
 }
 </script>
 {% endblock %}

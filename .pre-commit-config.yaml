@@ -16,6 +16,14 @@ repos:
         files: ^backend/.*\.py$
         pass_filenames: false
 
+      - id: tests
+        name: run-all-tests
+        entry: tests/run_tests.py
+        language: system
+        files: ^(backend/.*\.py|templates/.*\.html|tests/.*\.py)$
+        pass_filenames: false
+        always_run: true
+
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.5.0
     hooks:
