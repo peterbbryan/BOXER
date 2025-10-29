@@ -1771,6 +1771,11 @@ function pasteAnnotations() {
         selectedAnnotations = newAnnotations;
         drawExistingAnnotations();
 
+        // Ensure selection is visible with a small delay
+        setTimeout(() => {
+            drawExistingAnnotations();
+        }, 50);
+
         showNotification(`Pasted ${newAnnotations.length} annotation(s)`, 'success');
     } catch (error) {
         console.error('Error pasting annotations:', error);
