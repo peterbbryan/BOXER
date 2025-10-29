@@ -1107,17 +1107,23 @@ function startDrawing(e) {
             // Multi-select with Ctrl/Cmd key
             if (e.ctrlKey || e.metaKey) {
                 toggleAnnotationSelection(clickedAnnotation);
+                // Start dragging with Ctrl+click if already selected
+                if (isAlreadySelected && selectedAnnotations.length > 0) {
+                    startDraggingAnnotations(x, y);
+                }
             } else {
                 // Single select - clear all and select one
-                selectedAnnotations = [clickedAnnotation];
-                drawExistingAnnotations();
-                // Show context menu for single selection
-                showAnnotationContextMenu();
-            }
-
-            // Start dragging if any annotation is selected (including newly selected ones)
-            if (selectedAnnotations.length > 0) {
-                startDraggingAnnotations(x, y);
+                // Only start dragging if this was already selected (preserving multi-selection)
+                if (isAlreadySelected) {
+                    // Keep all current selections and start dragging
+                    startDraggingAnnotations(x, y);
+                } else {
+                    // New selection - replace all with just this one
+                    selectedAnnotations = [clickedAnnotation];
+                    drawExistingAnnotations();
+                    // Show context menu for single selection
+                    showAnnotationContextMenu();
+                }
             }
         } else {
             // Click on empty area - deselect all unless Ctrl is held
