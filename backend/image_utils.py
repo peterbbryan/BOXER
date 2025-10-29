@@ -13,7 +13,16 @@ from PIL import Image as PILImage
 def create_thumbnail(
     image_path: str, thumbnail_path: str, size: Tuple[int, int] = (300, 300)
 ) -> bool:
-    """Create a thumbnail of an image"""
+    """Create a thumbnail of an image.
+
+    Args:
+        image_path: Path to the source image file.
+        thumbnail_path: Path where the thumbnail will be saved.
+        size: Maximum size of the thumbnail as (width, height). Defaults to (300, 300).
+
+    Returns:
+        True if thumbnail was created successfully, False otherwise.
+    """
     try:
         with PILImage.open(image_path) as img:
             img.thumbnail(size, PILImage.Resampling.LANCZOS)
@@ -25,7 +34,15 @@ def create_thumbnail(
 
 
 def get_image_info(image_path: str) -> Dict[str, any]:
-    """Get image information (dimensions, size, etc.)"""
+    """Get image information (dimensions, size, etc.).
+
+    Args:
+        image_path: Path to the image file.
+
+    Returns:
+        Dictionary containing image metadata including width, height, file_size,
+        format, and mode. Returns empty dict if file cannot be read.
+    """
     try:
         with PILImage.open(image_path) as img:
             width, height = img.size
@@ -44,7 +61,14 @@ def get_image_info(image_path: str) -> Dict[str, any]:
 
 
 def validate_image(file_path: str) -> bool:
-    """Validate if file is a valid image"""
+    """Validate if file is a valid image.
+
+    Args:
+        file_path: Path to the file to validate.
+
+    Returns:
+        True if the file is a valid image, False otherwise.
+    """
     try:
         with PILImage.open(file_path) as img:
             img.verify()
@@ -54,14 +78,26 @@ def validate_image(file_path: str) -> bool:
 
 
 def generate_unique_filename(original_filename: str) -> str:
-    """Generate a unique filename while preserving extension"""
+    """Generate a unique filename while preserving extension.
+
+    Args:
+        original_filename: The original filename to make unique.
+
+    Returns:
+        A new filename with a unique UUID suffix while preserving the
+        original extension.
+    """
     name, ext = os.path.splitext(original_filename)
     unique_id = str(uuid.uuid4())[:8]
     return f"{name}_{unique_id}{ext}"
 
 
 def ensure_upload_directories() -> None:
-    """Ensure upload directories exist"""
+    """Ensure upload directories exist.
+
+    Creates the necessary directories for storing uploaded images and
+    thumbnails if they don't already exist.
+    """
     # Get absolute paths relative to backend directory
     backend_dir = os.path.dirname(os.path.abspath(__file__))
     project_root = os.path.dirname(backend_dir)
@@ -77,7 +113,19 @@ def ensure_upload_directories() -> None:
 
 
 def process_uploaded_image(file_path: str, original_filename: str) -> Dict[str, any]:
-    """Process an uploaded image and create thumbnail"""
+    """Process an uploaded image and create thumbnail.
+
+    Moves the uploaded image to the images directory, generates a unique
+    filename, creates a thumbnail, and gathers image metadata.
+
+    Args:
+        file_path: Path to the temporary uploaded file.
+        original_filename: The original filename of the uploaded file.
+
+    Returns:
+        Dictionary containing image metadata including filename,
+        file_path, thumbnail_path, dimensions, file_size, and mime_type.
+    """
     ensure_upload_directories()
 
     # Get absolute paths
@@ -131,5 +179,9 @@ def process_uploaded_image(file_path: str, original_filename: str) -> Dict[str, 
 
 
 def get_supported_formats() -> List[str]:
-    """Get list of supported image formats"""
+    """Get list of supported image formats.
+
+    Returns:
+        List of file extensions for supported image formats.
+    """
     return [".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".webp", ".gif"]

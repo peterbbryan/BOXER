@@ -98,7 +98,15 @@ class AnnotationCreate(BaseModel):
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request) -> HTMLResponse:
-    """Serve the main labeling interface"""
+    """Serve the main labeling interface.
+
+    Args:
+        request: FastAPI request object.
+
+    Returns:
+        HTMLResponse: Rendered labeling interface template with project,
+        dataset, images, and label categories data.
+    """
     # Get or create a default project and dataset
     db = next(get_db())
     try:
@@ -187,7 +195,11 @@ async def read_root(request: Request) -> HTMLResponse:
 # API Endpoints
 @app.get("/api/health")
 async def health_check() -> Dict[str, str]:
-    """Health check endpoint"""
+    """Health check endpoint.
+
+    Returns:
+        Dict containing status and message indicating the API is running.
+    """
     return {"status": "healthy", "message": "VibeCortex Data Labeling Tool is running!"}
 
 
@@ -196,7 +208,15 @@ async def health_check() -> Dict[str, str]:
 async def create_project(
     project_data: ProjectCreate, db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
-    """Create a new project"""
+    """Create a new project.
+
+    Args:
+        project_data: Project creation data including name and description.
+        db: Database session dependency.
+
+    Returns:
+        Dict containing success message and project_id of the created project.
+    """
     project = Project(
         name=project_data.name,
         description=project_data.description,
@@ -212,7 +232,14 @@ async def create_project(
 
 @app.get("/api/projects")
 async def get_projects(db: Session = Depends(get_db)):
-    """Get all projects"""
+    """Get all projects.
+
+    Args:
+        db: Database session dependency.
+
+    Returns:
+        Dict containing list of all projects.
+    """
     projects = db.query(Project).all()
     return {"projects": projects}
 
@@ -221,7 +248,19 @@ async def get_projects(db: Session = Depends(get_db)):
 async def update_project(
     project_id: int, project_data: ProjectUpdate, db: Session = Depends(get_db)
 ):
-    """Update a project name"""
+    """Update a project name.
+
+    Args:
+        project_id: ID of the project to update.
+        project_data: Project update data containing new name.
+        db: Database session dependency.
+
+    Returns:
+        Dict containing success message and updated project data.
+
+    Raises:
+        HTTPException: If project with given ID is not found.
+    """
     # Find the project
     project = db.query(Project).filter(Project.id == project_id).first()
 
@@ -241,7 +280,18 @@ async def update_project(
 # Dataset endpoints
 @app.post("/api/datasets")
 async def create_dataset(dataset_data: DatasetCreate, db: Session = Depends(get_db)):
-    """Create a new dataset"""
+    """Create a new dataset.
+
+    Args:
+        dataset_data: Dataset creation data including name and project_id.
+        db: Database session dependency.
+
+    Returns:
+        Dict containing success message and dataset_id of the created dataset.
+
+    Raises:
+        HTTPException: If parent project is not found.
+    """
     # Verify project exists
     project = db.query(Project).filter(Project.id == dataset_data.project_id).first()
 
@@ -268,7 +318,19 @@ async def upload_image(
     dataset_id: int = Form(...),
     db: Session = Depends(get_db),
 ):
-    """Upload an image to a dataset"""
+    """Upload an image to a dataset.
+
+    Args:
+        file: Uploaded image file.
+        dataset_id: ID of the dataset to upload to.
+        db: Database session dependency.
+
+    Returns:
+        Dict containing success message and image_id of the uploaded image.
+
+    Raises:
+        HTTPException: If dataset not found or file validation fails.
+    """
     # Verify dataset exists
     dataset = db.query(Dataset).filter(Dataset.id == dataset_id).first()
 
@@ -324,7 +386,18 @@ async def upload_image(
 # Image delete endpoint
 @app.delete("/api/images/{image_id}")
 async def delete_image(image_id: int, db: Session = Depends(get_db)):
-    """Delete an image and its associated files"""
+    """Delete an image and its associated files.
+
+    Args:
+        image_id: ID of the image to delete.
+        db: Database session dependency.
+
+    Returns:
+        Dict containing success message and image_id.
+
+    Raises:
+        HTTPException: If image not found or deletion fails.
+    """
     # Find the image
     image = db.query(Image).filter(Image.id == image_id).first()
 
@@ -369,7 +442,18 @@ async def delete_image(image_id: int, db: Session = Depends(get_db)):
 async def create_label_category(
     category_data: LabelCategoryCreate, db: Session = Depends(get_db)
 ):
-    """Create a new label category"""
+    """Create a new label category.
+
+    Args:
+        category_data: Category creation data including name, color, and project_id.
+        db: Database session dependency.
+
+    Returns:
+        Dict containing success message and category_id of the created category.
+
+    Raises:
+        HTTPException: If parent project is not found.
+    """
     # Verify project exists
     project = db.query(Project).filter(Project.id == category_data.project_id).first()
 
@@ -397,7 +481,19 @@ async def create_label_category(
 async def create_annotation(
     annotation_data: AnnotationCreate, db: Session = Depends(get_db)
 ):
-    """Create a new annotation"""
+    """Create a new annotation.
+
+    Args:
+        annotation_data: Annotation creation data including image_id,
+            label_category_id, annotation_data, and confidence.
+        db: Database session dependency.
+
+    Returns:
+        Dict containing success message and annotation_id of the created annotation.
+
+    Raises:
+        HTTPException: If image not found.
+    """
     # Verify image exists
     image = db.query(Image).filter(Image.id == annotation_data.image_id).first()
 
@@ -424,7 +520,16 @@ async def create_annotation(
 
 @app.get("/api/annotations/{image_id}")
 async def get_annotations(image_id: int, db: Session = Depends(get_db)):
-    """Get annotations for an image"""
+    """Get annotations for an image.
+
+    Args:
+        image_id: ID of the image to get annotations for.
+        db: Database session dependency.
+
+    Returns:
+        Dict containing list of annotations for the image. Returns empty list
+        if image doesn't exist.
+    """
     # Return empty list for non-existent images to match test expectations
     image = db.query(Image).filter(Image.id == image_id).first()
 
@@ -458,7 +563,18 @@ async def get_annotations(image_id: int, db: Session = Depends(get_db)):
 
 @app.delete("/api/annotations/{annotation_id}")
 async def delete_annotation(annotation_id: int, db: Session = Depends(get_db)):
-    """Delete an annotation"""
+    """Delete an annotation.
+
+    Args:
+        annotation_id: ID of the annotation to delete.
+        db: Database session dependency.
+
+    Returns:
+        Dict containing success message.
+
+    Raises:
+        HTTPException: If annotation not found.
+    """
     # Find the annotation
     annotation = db.query(Annotation).filter(Annotation.id == annotation_id).first()
 
