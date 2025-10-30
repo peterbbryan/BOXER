@@ -695,7 +695,22 @@ async def export_to_yolo(  # pylint: disable=too-many-locals
         .filter(LabelCategory.id.in_(annotation_category_ids))
         .all()
     )
-    category_id_to_index = {cat.id: idx for idx, cat in enumerate(categories)}
+
+    # Deduplicate categories by name (keep first occurrence)
+    seen_names = {}
+    unique_categories = []
+    category_id_to_index = {}
+
+    for cat in categories:
+        if cat.name not in seen_names:
+            seen_names[cat.name] = len(unique_categories)
+            unique_categories.append(cat)
+            category_id_to_index[cat.id] = len(unique_categories) - 1
+        else:
+            # Map duplicate category ID to the same index as the first occurrence
+            category_id_to_index[cat.id] = seen_names[cat.name]
+
+    categories = unique_categories
 
     # Create a ZIP file in memory
     zip_buffer = io.BytesIO()

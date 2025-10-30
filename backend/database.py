@@ -16,6 +16,7 @@ from sqlalchemy import (
     JSON,
     String,
     Text,
+    UniqueConstraint,
     create_engine,
 )
 from sqlalchemy.ext.declarative import declarative_base
@@ -150,6 +151,11 @@ class LabelCategory(Base):
     color = Column(String(7), default="#3B82F6")  # Hex color
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Add unique constraint: category names must be unique within a project
+    __table_args__ = (
+        UniqueConstraint("project_id", "name", name="uq_project_category_name"),
+    )
 
     # Relationships
     project = relationship("Project", back_populates="label_categories")

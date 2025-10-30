@@ -28,17 +28,6 @@
                        data-project-id="{{ project.id }}">
             </div>
             <div class="flex items-center space-x-4">
-                <div id="username-display" class="text-sm text-gray-300 hidden">
-                    <i class="fas fa-user mr-2"></i><span id="username-text"></span>
-                </div>
-                <div id="username-input-container" class="flex items-center space-x-2">
-                    <input id="username-input" type="text" placeholder="Enter your name" required
-                           class="px-3 py-1 rounded bg-gray-700 text-white text-sm border border-gray-600 focus:border-blue-500 focus:outline-none"
-                           style="width: 200px;">
-                    <button id="save-username" class="px-3 py-1 rounded bg-blue-600 text-white text-sm hover:bg-blue-700 transition-colors">
-                        <i class="fas fa-check mr-1"></i>Save
-                    </button>
-                </div>
                 <div class="text-sm text-gray-400">
                     <span id="current-image">1</span> of <span id="total-images">{{ images|length }}</span>
                 </div>
@@ -616,47 +605,6 @@ function setupEventListeners() {
         }
     });
 
-    // Username handling
-    loadUsername();
-
-    document.getElementById('save-username').addEventListener('click', saveUsername);
-    document.getElementById('username-input').addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') {
-            saveUsername();
-        }
-    });
-}
-
-// Username management
-function loadUsername() {
-    const username = localStorage.getItem('labeler_username');
-    if (username) {
-        document.getElementById('username-text').textContent = username;
-        document.getElementById('username-display').classList.remove('hidden');
-        document.getElementById('username-input-container').classList.add('hidden');
-    } else {
-        document.getElementById('username-display').classList.add('hidden');
-        document.getElementById('username-input-container').classList.remove('hidden');
-    }
-}
-
-function saveUsername() {
-    const usernameInput = document.getElementById('username-input');
-    const username = usernameInput.value.trim();
-
-    if (!username) {
-        showNotification('Please enter your name', 'error');
-        usernameInput.focus();
-        return;
-    }
-
-    localStorage.setItem('labeler_username', username);
-    loadUsername();
-    showNotification(`Welcome, ${username}!`, 'success');
-}
-
-function getUsername() {
-    return localStorage.getItem('labeler_username');
 }
 
 function loadImage(index) {
