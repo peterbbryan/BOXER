@@ -2,14 +2,17 @@
 VibeCortex Backend - Multi-User Data Labeling Tool
 """
 
+import io
 import os
+import zipfile
 from datetime import datetime
 from typing import Any, Dict, Optional
 
 import uvicorn
+from PIL import Image as PILImage
 from fastapi import Depends, FastAPI, Form, HTTPException, Request, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
@@ -25,7 +28,11 @@ from backend.database import (
     get_db,
     init_database,
 )
-from backend.image_utils import process_uploaded_image, validate_image
+from backend.image_utils import (
+    process_uploaded_image,
+    validate_image,
+    convert_annotation_to_yolo,
+)
 
 # Create FastAPI app
 app = FastAPI(
@@ -658,6 +665,175 @@ async def update_annotation(
         response_data["coordinates"] = annotation.annotation_data.get("coordinates")
 
     return response_data
+
+
+@app.get("/api/export/yolo")
+async def export_to_yolo(  # pylint: disable=too-many-locals
+    db: Session = Depends(get_db),
+) -> Response:
+    """Export all annotations to YOLO format.
+
+    Args:
+        db: Database session dependency.
+
+    Returns:
+        ZIP file containing YOLO format annotations and images.
+    """
+    # Get all annotations
+    all_annotations = db.query(Annotation).all()
+
+    # Filter out annotations without valid annotation_data
+    annotations = [ann for ann in all_annotations if ann.annotation_data is not None]
+
+    if not annotations:
+        raise HTTPException(status_code=404, detail="No annotations found to export")
+
+    # Get all label categories used in annotations
+    annotation_category_ids = {ann.label_category_id for ann in annotations}
+    categories = (
+        db.query(LabelCategory)
+        .filter(LabelCategory.id.in_(annotation_category_ids))
+        .all()
+    )
+    category_id_to_index = {cat.id: idx for idx, cat in enumerate(categories)}
+
+    # Create a ZIP file in memory
+    zip_buffer = io.BytesIO()
+
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+        # Write classes.txt
+        classes_content = "\n".join([cat.name for cat in categories])
+        zip_file.writestr("classes.txt", classes_content)
+
+        # Group annotations by image
+        image_annotations = {}
+        for ann in annotations:
+            if ann.image_id not in image_annotations:
+                image_annotations[ann.image_id] = []
+            image_annotations[ann.image_id].append(ann)
+
+        # Process each image
+        for image_id, anns in image_annotations.items():
+            image = db.query(Image).filter(Image.id == image_id).first()
+            if not image:
+                continue
+
+            # Read the image to get dimensions
+            backend_dir = os.path.dirname(os.path.abspath(__file__))
+            proj_root = os.path.dirname(backend_dir)
+            image_path = os.path.join(proj_root, image.file_path)
+
+            if not os.path.exists(image_path):
+                continue
+
+            with PILImage.open(image_path) as img:
+                image_width, image_height = img.size
+
+            # Convert annotations to YOLO format
+            yolo_lines = []
+            for ann in anns:
+                # Convert annotation data structure
+                annotation_dict = {
+                    "tool": ann.annotation_data.get("tool")
+                    if isinstance(ann.annotation_data, dict)
+                    else "bbox",
+                    "coordinates": ann.annotation_data.get("coordinates")
+                    if isinstance(ann.annotation_data, dict)
+                    else ann.annotation_data,
+                    "label_category_id": ann.label_category_id,
+                }
+
+                yolo_line = convert_annotation_to_yolo(
+                    annotation_dict, image_width, image_height, category_id_to_index
+                )
+                if yolo_line:
+                    yolo_lines.append(yolo_line)
+
+            # Write annotation file
+            if yolo_lines:
+                # Use image filename without extension for .txt file
+                image_basename = os.path.splitext(image.filename)[0]
+                zip_file.writestr(f"labels/{image_basename}.txt", "\n".join(yolo_lines))
+
+                # Copy image to ZIP
+                with open(image_path, "rb") as f:
+                    zip_file.writestr(f"images/{image.filename}", f.read())
+
+    zip_buffer.seek(0)
+
+    return Response(
+        content=zip_buffer.read(),
+        media_type="application/zip",
+        headers={"Content-Disposition": "attachment; filename=yolo_export.zip"},
+    )
+
+
+@app.post("/api/import/yolo-classes")
+async def import_yolo_classes(
+    file: UploadFile = File(...),
+    project_id: int = Form(...),
+    db: Session = Depends(get_db),
+):
+    """Import YOLO classes from a classes.txt file.
+
+    Args:
+        file: The classes.txt file containing class names (one per line).
+        project_id: The project ID to associate the classes with.
+        db: Database session dependency.
+
+    Returns:
+        Success message with number of classes imported.
+    """
+    # Validate file type
+    if not file.filename or not file.filename.endswith(".txt"):
+        raise HTTPException(status_code=400, detail="File must be a .txt file")
+
+    # Read file content
+    content = await file.read()
+    try:
+        text_content = content.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise HTTPException(
+            status_code=400, detail="File must be valid UTF-8 text"
+        ) from exc
+
+    # Parse class names (one per line, strip whitespace)
+    class_names = [line.strip() for line in text_content.splitlines() if line.strip()]
+
+    if not class_names:
+        raise HTTPException(
+            status_code=400, detail="No valid class names found in file"
+        )
+
+    # Check if project exists
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    # Create label categories for each class
+    created_categories = []
+    for class_name in class_names:
+        # Check if category already exists for this project
+        existing_category = (
+            db.query(LabelCategory)
+            .filter(
+                LabelCategory.name == class_name, LabelCategory.project_id == project_id
+            )
+            .first()
+        )
+
+        if not existing_category:
+            category = LabelCategory(name=class_name, project_id=project_id)
+            db.add(category)
+            created_categories.append(category)
+
+    db.commit()
+
+    return {
+        "message": f"Successfully imported {len(created_categories)} classes",
+        "classes": [cat.name for cat in created_categories],
+        "total_classes": len(class_names),
+    }
 
 
 if __name__ == "__main__":

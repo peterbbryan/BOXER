@@ -185,3 +185,54 @@ def get_supported_formats() -> List[str]:
         List of file extensions for supported image formats.
     """
     return [".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".webp", ".gif"]
+
+
+def convert_annotation_to_yolo(  # pylint: disable=too-many-locals
+    annotation: Dict,
+    image_width: int,
+    image_height: int,
+    category_id_to_index: Dict[int, int],
+) -> str:
+    """Convert an annotation to YOLO format.
+
+    Args:
+        annotation: Annotation dictionary with tool and coordinates.
+        image_width: Width of the image.
+        image_height: Height of the image.
+        category_id_to_index: Dictionary mapping category IDs to YOLO class indices.
+
+    Returns:
+        YOLO format line string or empty string if conversion not possible.
+    """
+    tool = annotation.get("tool", "")
+    coordinates = annotation.get("coordinates", {})
+
+    if tool == "bbox":
+        # Convert bbox to YOLO format (center_x, center_y, width, height, normalized)
+        start_x = coordinates.get("startX", 0)
+        start_y = coordinates.get("startY", 0)
+        end_x = coordinates.get("endX", 0)
+        end_y = coordinates.get("endY", 0)
+
+        # Calculate center and dimensions
+        center_x = (start_x + end_x) / 2.0
+        center_y = (start_y + end_y) / 2.0
+        width = abs(end_x - start_x)
+        height = abs(end_y - start_y)
+
+        # Normalize coordinates
+        normalized_center_x = center_x / image_width
+        normalized_center_y = center_y / image_height
+        normalized_width = width / image_width
+        normalized_height = height / image_height
+
+        # Get class index
+        label_category_id = annotation.get("label_category_id")
+        class_index = category_id_to_index.get(label_category_id, 0)
+
+        return (
+            f"{class_index} {normalized_center_x:.6f} {normalized_center_y:.6f} "
+            f"{normalized_width:.6f} {normalized_height:.6f}"
+        )
+
+    return ""

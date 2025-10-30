@@ -24,6 +24,8 @@ def run_unit_tests():
     from tests.unit import test_image_utils
     from tests.unit import test_zoom_pan
     from tests.unit import test_api_endpoints
+    from tests.unit import test_yolo_export
+    from tests.unit import test_yolo_import
 
     loader = unittest.TestLoader()
     suite = unittest.TestSuite()
@@ -34,6 +36,8 @@ def run_unit_tests():
     suite.addTests(loader.loadTestsFromModule(test_image_utils))
     suite.addTests(loader.loadTestsFromModule(test_zoom_pan))
     suite.addTests(loader.loadTestsFromModule(test_api_endpoints))
+    suite.addTests(loader.loadTestsFromModule(test_yolo_export))
+    suite.addTests(loader.loadTestsFromModule(test_yolo_import))
 
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)
@@ -51,6 +55,8 @@ def run_integration_tests():
     from tests.integration import test_database_migrations
     from tests.integration import test_api_contracts
     from tests.integration import test_full_workflows
+    from tests.integration import test_yolo_export_api
+    from tests.integration import test_yolo_import_api
 
     loader = unittest.TestLoader()
     suite = unittest.TestSuite()
@@ -59,6 +65,8 @@ def run_integration_tests():
     suite.addTests(loader.loadTestsFromModule(test_database_migrations))
     suite.addTests(loader.loadTestsFromModule(test_api_contracts))
     suite.addTests(loader.loadTestsFromModule(test_full_workflows))
+    suite.addTests(loader.loadTestsFromModule(test_yolo_export_api))
+    suite.addTests(loader.loadTestsFromModule(test_yolo_import_api))
 
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)

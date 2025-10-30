@@ -85,6 +85,7 @@
                 <div class="space-y-3">
                     <div class="border-2 border-dashed border-gray-600 rounded-lg p-4 text-center hover:border-blue-400 transition-colors">
                         <input type="file" id="image-upload" multiple accept="image/*,.tiff,.tif" class="hidden">
+                        <input type="file" id="yolo-classes-upload" accept=".txt" class="hidden">
                         <label for="image-upload" class="cursor-pointer">
                             <i class="fas fa-cloud-upload-alt text-3xl text-gray-400 mb-2"></i>
                             <p class="text-sm text-gray-300">Click to upload images</p>
@@ -148,6 +149,13 @@
                         </button>
                         <button id="clear-tool" class="tool-btn px-3 py-1 rounded text-sm font-medium text-red-400 hover:bg-red-900 hover:text-red-300">
                             <i class="fas fa-trash mr-1"></i>Clear All
+                        </button>
+                        <div class="w-px h-6 bg-gray-600"></div>
+                        <button id="export-yolo" class="tool-btn px-3 py-1 rounded text-sm font-medium text-green-400 hover:bg-green-900 hover:text-green-300" title="Export annotations to YOLO format">
+                            <i class="fas fa-download mr-1"></i>Export YOLO
+                        </button>
+                        <button id="import-yolo-classes" class="tool-btn px-3 py-1 rounded text-sm font-medium text-blue-400 hover:bg-blue-900 hover:text-blue-300" title="Import YOLO classes from classes.txt">
+                            <i class="fas fa-upload mr-1"></i>Import Classes
                         </button>
                     </div>
                     <div class="flex items-center space-x-2">
@@ -334,11 +342,21 @@ document.addEventListener('DOMContentLoaded', function() {
 
 function setupEventListeners() {
     // Tool selection
-    document.querySelectorAll('.tool-btn').forEach(btn => {
+        document.querySelectorAll('.tool-btn').forEach(btn => {
         btn.addEventListener('click', function() {
             // Handle clear button separately
             if (this.id === 'clear-tool') {
                 clearAllAnnotations();
+                return;
+            }
+            // Handle export button separately
+            if (this.id === 'export-yolo') {
+                exportToYOLO();
+                return;
+            }
+            // Handle import classes button separately
+            if (this.id === 'import-yolo-classes') {
+                importYOLOClasses();
                 return;
             }
 
@@ -416,6 +434,10 @@ function setupEventListeners() {
             uploadButton.innerHTML = '<i class="fas fa-upload mr-2"></i>Upload Selected Images';
         }
     });
+
+    // Add event listener for YOLO classes import
+    const yoloClassesUpload = document.getElementById('yolo-classes-upload');
+    yoloClassesUpload.addEventListener('change', handleYOLOClassesUpload);
 
     uploadButton.addEventListener('click', uploadImages);
 
@@ -1966,9 +1988,32 @@ function stopDraggingAnnotations() {
 function showAnnotationContextMenu() {
     const contextMenu = document.getElementById('annotation-context-menu');
     if (contextMenu && selectedAnnotations.length > 0) {
-        // Position the context menu at the stored mouse position (right-click position)
-        const x = lastContextMenuX;
-        const y = lastContextMenuY;
+        // Use stored mouse position if available, otherwise calculate from annotation
+        let x, y;
+
+        if (lastContextMenuX && lastContextMenuY) {
+            // Use right-click position
+            x = lastContextMenuX;
+            y = lastContextMenuY;
+        } else {
+            // Fallback to annotation center position
+            const canvas = document.getElementById('annotation-canvas');
+            const rect = canvas.getBoundingClientRect();
+            const coords = selectedAnnotations[0].coordinates;
+
+            if (selectedAnnotations[0].tool === 'bbox') {
+                const centerX = (coords.startX + coords.endX) / 2;
+                const centerY = (coords.startY + coords.endY) / 2;
+                x = rect.left + centerX * zoomLevel + panX;
+                y = rect.top + centerY * zoomLevel + panY;
+            } else if (selectedAnnotations[0].tool === 'point') {
+                x = rect.left + coords.startX * zoomLevel + panX;
+                y = rect.top + coords.startY * zoomLevel + panY;
+            } else {
+                x = rect.left + rect.width / 2;
+                y = rect.top + rect.height / 2;
+            }
+        }
 
         // Ensure menu stays within viewport
         const menuWidth = 200; // Approximate menu width
@@ -1992,7 +2037,7 @@ function showAnnotationContextMenu() {
         contextMenu.style.zIndex = '9999';
         contextMenu.classList.remove('hidden');
 
-        console.log('Context menu shown at:', finalX, finalY);
+        console.log('Context menu shown at:', finalX, finalY, 'from position:', x, y);
     }
 }
 
@@ -2077,6 +2122,70 @@ function deleteSelectedAnnotations() {
         deselectAllAnnotations();
         drawExistingAnnotations();
     }
+}
+
+function exportToYOLO() {
+    fetch('/api/export/yolo')
+        .then(response => response.blob())
+        .then(blob => {
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'yolo_export.zip';
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+            showNotification('YOLO export downloaded successfully!', 'success');
+        })
+        .catch(error => {
+            console.error('Error exporting to YOLO:', error);
+            showNotification('Error exporting to YOLO format', 'error');
+        });
+}
+
+function importYOLOClasses() {
+    const fileInput = document.getElementById('yolo-classes-upload');
+    fileInput.click();
+}
+
+function handleYOLOClassesUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    if (!file.name.endsWith('.txt')) {
+        showNotification('Please select a .txt file', 'error');
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('project_id', currentProjectId || 1); // Default to project 1 if not set
+
+    showNotification('Importing YOLO classes...', 'info');
+
+    fetch('/api/import/yolo-classes', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => {
+        if (response.ok) {
+            return response.json();
+        } else {
+            return response.json().then(data => {
+                throw new Error(data.detail || 'Error importing classes');
+            });
+        }
+    })
+    .then(data => {
+        showNotification(data.message, 'success');
+        // Refresh the categories list
+        loadCategories();
+    })
+    .catch(error => {
+        console.error('Error importing YOLO classes:', error);
+        showNotification('Error importing YOLO classes', 'error');
+    });
 }
 
 function clearAllAnnotations() {
