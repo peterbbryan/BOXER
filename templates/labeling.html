@@ -42,6 +42,16 @@
                        data-project-id="{{ project.id }}">
             </div>
             <div class="flex items-center space-x-4">
+                <!-- Selection actions (visible when annotations are selected) -->
+                <div id="selection-actions" class="hidden flex items-center space-x-2 mr-4">
+                    <button id="top-edit-annotation" class="px-3 py-1 rounded text-sm font-medium text-blue-400 hover:bg-blue-900 hover:text-blue-300 disabled:opacity-40 disabled:cursor-not-allowed">
+                        <i class="fas fa-edit mr-1"></i>Edit Category
+                    </button>
+                    <button id="top-delete-annotation" class="px-3 py-1 rounded text-sm font-medium text-red-400 hover:bg-red-900 hover:text-red-300 disabled:opacity-40 disabled:cursor-not-allowed">
+                        <i class="fas fa-trash mr-1"></i>Delete Annotation(s)
+                    </button>
+                </div>
+
                 <div class="text-sm text-gray-400">
                     <span id="current-image">1</span> of <span id="total-images">{{ images|length }}</span>
                 </div>
@@ -102,9 +112,7 @@
                             <p class="text-xs text-gray-500">PNG, JPG, JPEG, GIF, TIFF supported</p>
                         </label>
                     </div>
-                    <button id="upload-images" class="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled>
-                        <i class="fas fa-upload mr-2"></i>Upload Selected Images
-                    </button>
+
                 </div>
             </div>
 
@@ -430,18 +438,12 @@ function setupEventListeners() {
         });
     });
 
-    // Image upload
+    // Image upload - auto upload on selection
     const imageUpload = document.getElementById('image-upload');
-    const uploadButton = document.getElementById('upload-images');
-
     imageUpload.addEventListener('change', function() {
         const files = this.files;
         if (files.length > 0) {
-            uploadButton.disabled = false;
-            uploadButton.textContent = `Upload ${files.length} Image${files.length > 1 ? 's' : ''}`;
-        } else {
-            uploadButton.disabled = true;
-            uploadButton.innerHTML = '<i class="fas fa-upload mr-2"></i>Upload Selected Images';
+            uploadImages();
         }
     });
 
@@ -449,7 +451,7 @@ function setupEventListeners() {
     const yoloClassesUpload = document.getElementById('yolo-classes-upload');
     yoloClassesUpload.addEventListener('change', handleYOLOClassesUpload);
 
-    uploadButton.addEventListener('click', uploadImages);
+    // Removed manual upload button; uploads start automatically on selection
 
     // Canvas events
     const canvas = document.getElementById('annotation-canvas');
@@ -617,6 +619,24 @@ function setupEventListeners() {
     document.getElementById('zoom-out').addEventListener('click', zoomOut);
     document.getElementById('fit-to-screen').addEventListener('click', fitToScreen);
 
+    // Top bar selection actions
+    const topEditBtn = document.getElementById('top-edit-annotation');
+    const topDeleteBtn = document.getElementById('top-delete-annotation');
+    if (topEditBtn) {
+        topEditBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            editAnnotation();
+        });
+    }
+    if (topDeleteBtn) {
+        topDeleteBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            deleteSelectedAnnotations();
+        });
+    }
+
     // Hide context menu when clicking elsewhere
     document.addEventListener('click', function(e) {
         // Don't hide if clicking delete buttons or within their parent
@@ -731,6 +751,25 @@ function loadImage(index) {
     document.querySelectorAll('.image-thumbnail').forEach((thumb, i) => {
         thumb.classList.toggle('border-blue-500', i === index);
     });
+}
+
+function updateSelectionActions() {
+    const bar = document.getElementById('selection-actions');
+    const editBtn = document.getElementById('top-edit-annotation');
+    const delBtn = document.getElementById('top-delete-annotation');
+
+    if (!bar || !editBtn || !delBtn) return;
+
+    const hasSelection = selectedAnnotations && selectedAnnotations.length > 0;
+    if (hasSelection) {
+        bar.classList.remove('hidden');
+        editBtn.disabled = selectedAnnotations.length !== 1; // edit one at a time
+        delBtn.disabled = false;
+    } else {
+        bar.classList.add('hidden');
+        editBtn.disabled = true;
+        delBtn.disabled = true;
+    }
 }
 
 function showNoImagePlaceholder() {
@@ -1131,6 +1170,7 @@ function startDrawing(e) {
                 if (isAlreadySelected && selectedAnnotations.length > 0) {
                     startDraggingAnnotations(x, y);
                 }
+                updateSelectionActions();
             } else {
                 // Single select - clear all and select one
                 // Only start dragging if this was already selected (preserving multi-selection)
@@ -1142,7 +1182,7 @@ function startDrawing(e) {
                     selectedAnnotations = [clickedAnnotation];
                     drawExistingAnnotations();
                     // Show context menu for single selection
-                    showAnnotationContextMenu();
+                    updateSelectionActions();
                 }
             }
         } else {
@@ -1150,6 +1190,7 @@ function startDrawing(e) {
             if (!e.ctrlKey && !e.metaKey) {
                 deselectAllAnnotations();
             }
+            updateSelectionActions();
         }
         return;
     }
@@ -1170,8 +1211,16 @@ function startDrawing(e) {
             // Check if clicking near the first point to close polygon
             if (polygonPoints.length >= 3) {
                 const firstPoint = polygonPoints[0];
-                const distance = Math.sqrt((x - firstPoint.x) ** 2 + (y - firstPoint.y) ** 2);
-                if (distance <= 15) { // 15 pixel radius to close polygon
+                // Use screen-space distance for a consistent pixel-based hit radius
+                const clickScreenX = x * zoomLevel + panX;
+                const clickScreenY = y * zoomLevel + panY;
+                const firstScreenX = firstPoint.x * zoomLevel + panX;
+                const firstScreenY = firstPoint.y * zoomLevel + panY;
+                const dx = clickScreenX - firstScreenX;
+                const dy = clickScreenY - firstScreenY;
+                const distancePx = Math.sqrt(dx * dx + dy * dy);
+                const CLOSE_RADIUS_PX = 18; // allow a generous bullseye radius in pixels
+                if (distancePx <= CLOSE_RADIUS_PX) {
                     completePolygon();
                     return;
                 }
@@ -1604,9 +1653,12 @@ async function uploadImages() {
         return;
     }
 
+    // Optional: if an upload button exists (legacy), reflect loading state
     const uploadButton = document.getElementById('upload-images');
-    uploadButton.disabled = true;
-    uploadButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Uploading...';
+    if (uploadButton) {
+        uploadButton.disabled = true;
+        uploadButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Uploading...';
+    }
 
     let successCount = 0;
     let failCount = 0;
@@ -1638,8 +1690,10 @@ async function uploadImages() {
 
     // Reset upload form
     fileInput.value = '';
-    uploadButton.disabled = true;
-    uploadButton.innerHTML = '<i class="fas fa-upload mr-2"></i>Upload Selected Images';
+    if (uploadButton) {
+        uploadButton.disabled = true;
+        uploadButton.innerHTML = '<i class="fas fa-upload mr-2"></i>Upload Selected Images';
+    }
 
     // Show notification
     if (successCount > 0) {
@@ -1816,6 +1870,7 @@ function deselectAllAnnotations() {
     selectedAnnotations = [];
     drawExistingAnnotations();
     hideAnnotationContextMenu();
+    updateSelectionActions();
 }
 
 function toggleAnnotationSelection(annotation) {
