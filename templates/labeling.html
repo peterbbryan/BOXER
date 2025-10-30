@@ -2110,7 +2110,9 @@ function handleYOLOClassesUpload(event) {
 
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('project_id', currentProjectId || 1); // Default to project 1 if not set
+    // Get the project ID from the data attribute on the project name
+    const projectId = document.querySelector('[data-project-id]')?.getAttribute('data-project-id');
+    formData.append('project_id', projectId || {{ project.id }});
 
     showNotification('Importing YOLO classes...', 'info');
 
@@ -2128,13 +2130,15 @@ function handleYOLOClassesUpload(event) {
         }
     })
     .then(data => {
+        console.log('Import successful:', data);
         showNotification(data.message, 'success');
         // Reset the file input
         fileInput.value = '';
         // Reload the page to show new categories
         setTimeout(() => {
+            console.log('Reloading page...');
             location.reload();
-        }, 1000); // Small delay to let user see the success message
+        }, 1500); // Small delay to let user see the success message
     })
     .catch(error => {
         console.error('Error importing YOLO classes:', error);

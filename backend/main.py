@@ -449,14 +449,38 @@ async def delete_image(image_id: int, db: Session = Depends(get_db)):
         proj_root = os.path.dirname(backend_dir)
 
         # Delete main image file
-        main_image_path = os.path.join(proj_root, image.file_path)
-        if os.path.exists(main_image_path):
-            os.remove(main_image_path)
+        if image.file_path:
+            # Handle both absolute and relative paths
+            if os.path.isabs(image.file_path):
+                main_image_path = image.file_path
+            elif image.file_path.startswith("../"):
+                # Handle ../uploads format
+                main_image_path = os.path.normpath(
+                    os.path.join(proj_root, image.file_path)
+                )
+            else:
+                main_image_path = os.path.join(proj_root, image.file_path)
+
+            if os.path.exists(main_image_path):
+                os.remove(main_image_path)
+                print(f"Deleted main image: {main_image_path}")
 
         # Delete thumbnail file
-        thumbnail_path = os.path.join(proj_root, image.thumbnail_path)
-        if os.path.exists(thumbnail_path):
-            os.remove(thumbnail_path)
+        if image.thumbnail_path:
+            # Handle both absolute and relative paths
+            if os.path.isabs(image.thumbnail_path):
+                thumbnail_path = image.thumbnail_path
+            elif image.thumbnail_path.startswith("../"):
+                # Handle ../uploads format
+                thumbnail_path = os.path.normpath(
+                    os.path.join(proj_root, image.thumbnail_path)
+                )
+            else:
+                thumbnail_path = os.path.join(proj_root, image.thumbnail_path)
+
+            if os.path.exists(thumbnail_path):
+                os.remove(thumbnail_path)
+                print(f"Deleted thumbnail: {thumbnail_path}")
 
         return {"message": "Image deleted successfully", "image_id": image_id}
 
@@ -840,9 +864,14 @@ async def import_yolo_classes(
         if not existing_category:
             category = LabelCategory(name=class_name, project_id=project_id)
             db.add(category)
+            db.flush()  # Flush to get the ID
             created_categories.append(category)
 
     db.commit()
+
+    # Refresh categories to ensure they're committed
+    for cat in created_categories:
+        db.refresh(cat)
 
     return {
         "message": f"Successfully imported {len(created_categories)} classes",
