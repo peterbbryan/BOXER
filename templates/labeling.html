@@ -2150,11 +2150,13 @@ function importYOLOClasses() {
 }
 
 function handleYOLOClassesUpload(event) {
-    const file = event.target.files[0];
+    const fileInput = event.target;
+    const file = fileInput.files[0];
     if (!file) return;
 
     if (!file.name.endsWith('.txt')) {
         showNotification('Please select a .txt file', 'error');
+        fileInput.value = '';
         return;
     }
 
@@ -2179,12 +2181,18 @@ function handleYOLOClassesUpload(event) {
     })
     .then(data => {
         showNotification(data.message, 'success');
-        // Refresh the categories list
-        loadCategories();
+        // Reset the file input
+        fileInput.value = '';
+        // Reload the page to show new categories
+        setTimeout(() => {
+            location.reload();
+        }, 1000); // Small delay to let user see the success message
     })
     .catch(error => {
         console.error('Error importing YOLO classes:', error);
         showNotification('Error importing YOLO classes', 'error');
+        // Reset the file input even on error
+        fileInput.value = '';
     });
 }
 
