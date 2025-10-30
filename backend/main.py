@@ -552,13 +552,25 @@ async def delete_label_category(category_id: int, db: Session = Depends(get_db))
         raise HTTPException(status_code=404, detail="Category not found")
 
     try:
+        # First, delete all annotations that reference this category
+        annotation_count = (
+            db.query(Annotation)
+            .filter(Annotation.label_category_id == category_id)
+            .delete()
+        )
+
         # Delete the category
         db.delete(category)
         db.commit()
 
+        msg = (
+            f"Label category deleted successfully "
+            f"(removed {annotation_count} associated annotation(s))"
+        )
         return {
-            "message": "Label category deleted successfully",
+            "message": msg,
             "category_id": category_id,
+            "deleted_annotations": annotation_count,
         }
 
     except Exception as e:
