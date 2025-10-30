@@ -589,9 +589,7 @@ function setupEventListeners() {
         }
     });
 
-    // Context menu event listeners
-    document.getElementById('edit-annotation').addEventListener('click', editAnnotation);
-    document.getElementById('delete-annotation').addEventListener('click', deleteSelectedAnnotations);
+    // Context menu event listeners (removed - now handled below with stopPropagation)
 
     // Zoom and pan event listeners
     document.getElementById('zoom-in').addEventListener('click', zoomIn);
@@ -600,9 +598,23 @@ function setupEventListeners() {
 
     // Hide context menu when clicking elsewhere
     document.addEventListener('click', function(e) {
+        // Only hide if clicking outside both the canvas and the context menu
         if (!e.target.closest('#annotation-context-menu') && !e.target.closest('#annotation-canvas')) {
             hideAnnotationContextMenu();
         }
+    });
+
+    // Add click handlers to context menu buttons to stop propagation
+    document.getElementById('edit-annotation').addEventListener('click', function(e) {
+        e.stopPropagation();
+        editAnnotation();
+        hideAnnotationContextMenu();
+    });
+
+    document.getElementById('delete-annotation').addEventListener('click', function(e) {
+        e.stopPropagation();
+        deleteSelectedAnnotations();
+        hideAnnotationContextMenu();
     });
 
 }
