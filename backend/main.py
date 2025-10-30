@@ -4,6 +4,7 @@ VibeCortex Backend - Multi-User Data Labeling Tool
 
 import io
 import os
+import random
 import zipfile
 from datetime import datetime
 from typing import Any, Dict, Optional
@@ -807,6 +808,19 @@ async def export_to_yolo(  # pylint: disable=too-many-locals
     )
 
 
+def generate_random_color() -> str:
+    """Generate a random hex color code.
+
+    Returns:
+        A random hex color code (e.g., '#FF5733').
+    """
+    # Generate random RGB values
+    r = random.randint(0, 255)
+    g = random.randint(0, 255)
+    b = random.randint(0, 255)
+    return f"#{r:02X}{g:02X}{b:02X}"
+
+
 @app.post("/api/import/yolo-classes")
 async def import_yolo_classes(
     file: UploadFile = File(...),
@@ -862,7 +876,11 @@ async def import_yolo_classes(
         )
 
         if not existing_category:
-            category = LabelCategory(name=class_name, project_id=project_id)
+            # Generate a random color for each imported category
+            random_color = generate_random_color()
+            category = LabelCategory(
+                name=class_name, project_id=project_id, color=random_color
+            )
             db.add(category)
             db.flush()  # Flush to get the ID
             created_categories.append(category)
