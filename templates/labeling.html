@@ -1545,7 +1545,7 @@ function saveAnnotationToDatabase(annotation) {
 }
 
 
-function uploadImages() {
+async function uploadImages() {
     const fileInput = document.getElementById('image-upload');
     const files = fileInput.files;
 
@@ -1558,34 +1558,52 @@ function uploadImages() {
     uploadButton.disabled = true;
     uploadButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Uploading...';
 
-    const formData = new FormData();
-    Array.from(files).forEach(file => {
-        formData.append('file', file);
-    });
-    formData.append('dataset_id', {{ dataset.id }});
+    let successCount = 0;
+    let failCount = 0;
 
-    fetch('/api/images/upload', {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => response.json())
-    .then(data => {
-        showNotification(`${files.length} image(s) uploaded successfully!`, 'success');
-        // Reset upload form
-        fileInput.value = '';
-        uploadButton.disabled = true;
-        uploadButton.innerHTML = '<i class="fas fa-upload mr-2"></i>Upload Selected Images';
-        // Reload page to show new images
+    // Upload files one by one
+    for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('dataset_id', {{ dataset.id }});
+
+        try {
+            const response = await fetch('/api/images/upload', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (response.ok) {
+                successCount++;
+            } else {
+                failCount++;
+                console.error(`Failed to upload ${file.name}`);
+            }
+        } catch (error) {
+            failCount++;
+            console.error(`Error uploading ${file.name}:`, error);
+        }
+    }
+
+    // Reset upload form
+    fileInput.value = '';
+    uploadButton.disabled = true;
+    uploadButton.innerHTML = '<i class="fas fa-upload mr-2"></i>Upload Selected Images';
+
+    // Show notification
+    if (successCount > 0) {
+        showNotification(`Successfully uploaded ${successCount} image(s)${failCount > 0 ? ` (${failCount} failed)` : ''}!`, 'success');
+    } else {
+        showNotification(`Failed to upload ${failCount} image(s)`, 'error');
+    }
+
+    // Reload page to show new images
+    if (successCount > 0) {
         setTimeout(() => {
             location.reload();
         }, 1500); // Small delay to show notification
-    })
-    .catch(error => {
-        console.error('Error uploading images:', error);
-        showNotification('Error uploading images', 'error');
-        uploadButton.disabled = false;
-        uploadButton.innerHTML = '<i class="fas fa-upload mr-2"></i>Upload Selected Images';
-    });
+    }
 }
 
 function addCategory(e) {

@@ -12,7 +12,7 @@ setup(
     name="vibecortex",
     version="0.1.0",
     author="Peter Bryan",
-    author_email="your.email@example.com",
+    author_email="peterbbryan@gmail.com",
     description="VibeCortex Data Labeling Tool",
     long_description=long_description,
     long_description_content_type="text/markdown",
