@@ -76,10 +76,10 @@
                             <div class="w-4 h-4 rounded-full mr-3" style="background-color: {{ category.color }}"></div>
                             <span class="text-sm font-medium text-gray-200">{{ category.name }}</span>
                         </div>
-                        <button class="delete-category-btn opacity-0 group-hover:opacity-100 transition-opacity px-2 py-1 text-red-400 hover:text-red-300 hover:bg-gray-600 rounded"
+                        <button type="button" class="delete-category-btn opacity-0 group-hover:opacity-100 transition-opacity px-2 py-1 text-red-400 hover:text-red-300 hover:bg-gray-600 rounded"
                                 data-category-id="{{ category.id }}"
                                 data-category-name="{{ category.name }}"
-                                onclick="event.stopPropagation(); deleteCategory({{ category.id }}, {{ category.name|tojson }})">
+                                onclick="event.stopPropagation(); console.log('Delete button clicked'); deleteCategory({{ category.id }}, {{ category.name|tojson }});">
                             <i class="fas fa-times text-xs"></i>
                         </button>
                     </div>
@@ -1669,9 +1669,12 @@ function addCategory(e) {
 }
 
 function deleteCategory(categoryId, categoryName) {
+    console.log('deleteCategory called with:', {categoryId, categoryName});
     if (!confirm(`Are you sure you want to delete the category "${categoryName}"?`)) {
+        console.log('User cancelled deletion');
         return;
     }
+    console.log('User confirmed deletion, proceeding with API call');
 
     fetch(`/api/label-categories/${categoryId}`, {
         method: 'DELETE'
