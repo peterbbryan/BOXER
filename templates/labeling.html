@@ -78,8 +78,7 @@
                         </div>
                         <button type="button" class="delete-category-btn opacity-0 group-hover:opacity-100 transition-opacity px-2 py-1 text-red-400 hover:text-red-300 hover:bg-gray-600 rounded"
                                 data-category-id="{{ category.id }}"
-                                data-category-name="{{ category.name }}"
-                                onclick="event.stopPropagation(); console.log('Delete button clicked'); deleteCategory({{ category.id }}, {{ category.name|tojson }});">
+                                data-category-name="{{ category.name }}">
                             <i class="fas fa-times text-xs"></i>
                         </button>
                     </div>
@@ -620,6 +619,11 @@ function setupEventListeners() {
 
     // Hide context menu when clicking elsewhere
     document.addEventListener('click', function(e) {
+        // Don't hide if clicking delete buttons or within their parent
+        if (e.target.closest('.delete-category-btn') || e.target.closest('[data-category-id]')) {
+            console.log('Click detected on category element, not hiding context menu');
+            return;
+        }
         // Only hide if clicking outside both the canvas and the context menu
         if (!e.target.closest('#annotation-context-menu') && !e.target.closest('#annotation-canvas')) {
             hideAnnotationContextMenu();
@@ -639,6 +643,18 @@ function setupEventListeners() {
         hideAnnotationContextMenu();
     });
 
+    // Add event delegation for delete category buttons
+    document.addEventListener('click', function(e) {
+        const deleteBtn = e.target.closest('.delete-category-btn');
+        if (deleteBtn) {
+            e.preventDefault();
+            e.stopPropagation();
+            const categoryId = deleteBtn.getAttribute('data-category-id');
+            const categoryName = deleteBtn.getAttribute('data-category-name');
+            console.log('Delete button clicked via event delegation:', {categoryId, categoryName});
+            deleteCategory(categoryId, categoryName);
+        }
+    });
 }
 
 function loadImage(index) {
@@ -1669,14 +1685,18 @@ function addCategory(e) {
 }
 
 function deleteCategory(categoryId, categoryName) {
-    console.log('deleteCategory called with:', {categoryId, categoryName});
+    console.log('deleteCategory called with:', {categoryId, categoryName, types: {id: typeof categoryId, name: typeof categoryName}});
+
+    // Convert categoryId to number if it's a string
+    const catId = typeof categoryId === 'string' ? parseInt(categoryId, 10) : categoryId;
+
     if (!confirm(`Are you sure you want to delete the category "${categoryName}"?`)) {
         console.log('User cancelled deletion');
         return;
     }
-    console.log('User confirmed deletion, proceeding with API call');
+    console.log('User confirmed deletion, proceeding with API call to delete category', catId);
 
-    fetch(`/api/label-categories/${categoryId}`, {
+    fetch(`/api/label-categories/${catId}`, {
         method: 'DELETE'
     })
     .then(response => {
