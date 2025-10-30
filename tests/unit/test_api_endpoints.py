@@ -37,7 +37,7 @@ class TestAPIEndpoints(unittest.TestCase):
 
         data = response.json()
         self.assertEqual(data["status"], "healthy")
-        self.assertIn("VibeCortex", data["message"])
+        self.assertIn("BOXER", data["message"])
 
     def test_root_endpoint_returns_html(self):
         """Test root endpoint returns HTML response"""
@@ -51,7 +51,7 @@ class TestAPIEndpoints(unittest.TestCase):
         response = self.client.get("/")
         self.assertEqual(response.status_code, 200)
         self.assertIn("text/html", response.headers["content-type"])
-        self.assertIn("VibeCortex", response.text)
+        self.assertIn("BOXER", response.text)
 
     def test_projects_endpoint(self):
         """Test projects endpoint"""

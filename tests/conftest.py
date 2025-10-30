@@ -1,5 +1,5 @@
 """
-Pytest configuration and fixtures for VibeCortex tests
+Pytest configuration and fixtures for BOXER tests
 """
 
 import pytest

@@ -9,14 +9,14 @@ with open("requirements.txt", "r", encoding="utf-8") as fh:
     ]
 
 setup(
-    name="vibecortex",
+    name="boxer",
     version="0.1.0",
     author="Peter Bryan",
     author_email="peterbbryan@gmail.com",
-    description="VibeCortex Data Labeling Tool",
+    description="BOXER Data Labeling Tool",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/peterbbryan/VibeCortex",
+    url="https://github.com/peterbbryan/BOXER",
     packages=find_packages(),
     classifiers=[
         "Development Status :: 3 - Alpha",

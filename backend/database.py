@@ -1,5 +1,5 @@
 """
-Database configuration and models for VibeCortex Data Labeling Tool
+Database configuration and models for BOXER Data Labeling Tool
 """
 
 import os

@@ -1,4 +1,4 @@
-# 🎨 VibeCortex - Intelligent Image Labeling Tool
+# 🎨 BOXER - Intelligent Image Labeling Tool
 
 <div align="center">
 
@@ -6,7 +6,7 @@
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Status](https://img.shields.io/badge/status-active-success.svg)
 
-**A powerful, web-based image annotation tool designed for creating high-quality training data for computer vision models.**
+**A powerful, web-based image annotation tool designed for creating high-quality training data for computer vision models. Built with a focus on simplicity, performance, and ease of use.**
 
 [Features](#-features) • [Installation](#-installation) • [Usage](#-usage) • [API Reference](#-api-reference) • [Contributing](#-contributing)
 
@@ -81,8 +81,8 @@
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/VibeCortex.git
-   cd VibeCortex
+   git clone https://github.com/yourusername/BOXER.git
+   cd BOXER
    ```
 
 2. **Create and activate a virtual environment**
@@ -192,7 +192,7 @@ Currently no authentication is implemented. All features are accessible to anyon
 ## 🏗️ Project Structure
 
 ```
-VibeCortex/
+BOXER/
 ├── backend/                   # Backend API code
 │   ├── main.py               # FastAPI application
 │   ├── database.py           # Database models and setup
@@ -289,7 +289,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## 📞 Support
 
-For issues, questions, or suggestions, please open an issue on the [GitHub Issues](https://github.com/yourusername/VibeCortex/issues) page.
+For issues, questions, or suggestions, please open an issue on the [GitHub Issues](https://github.com/yourusername/BOXER/issues) page.
 
 ---
 

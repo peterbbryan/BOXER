@@ -1,5 +1,5 @@
 """
-Image processing utilities for VibeCortex Data Labeling Tool
+Image processing utilities for BOXER Data Labeling Tool
 """
 
 import os

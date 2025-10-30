@@ -1,3 +1,3 @@
 """
-VibeCortex Backend Package
+BOXER Backend Package
 """

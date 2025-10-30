@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-VibeCortex Application Launcher
+BOXER Application Launcher
 Run this script to start the FastAPI web application
 """
 
@@ -20,7 +20,7 @@ os.chdir(backend_dir)
 sys.path.insert(0, str(backend_dir))
 
 if __name__ == "__main__":
-    print("🚀 Starting VibeCortex Data Labeling Tool...")
+    print("🚀 Starting BOXER Data Labeling Tool...")
     print("📍 Backend: FastAPI with SQLAlchemy database")
     print("🎨 Frontend: Modern responsive UI with image annotation")
     port = int(os.environ.get("PORT", 8001))

@@ -38,7 +38,7 @@ class TestUIFunctionality(unittest.TestCase):
 
         # Check for key UI elements
         content = response.text
-        self.assertIn("VibeCortex", content)
+        self.assertIn("BOXER", content)
         self.assertIn("Image Labeling Tool", content)
         self.assertIn("annotation-canvas", content)
         self.assertIn("tool-btn", content)

@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# VibeCortex Data Labeling Tool Startup Script
+# BOXER Data Labeling Tool Startup Script
 
-echo "🚀 Starting VibeCortex Data Labeling Tool..."
+echo "🚀 Starting BOXER Data Labeling Tool..."
 
 # Activate virtual environment
 source venv/bin/activate

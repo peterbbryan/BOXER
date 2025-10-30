@@ -123,7 +123,7 @@ def cleanup_test_artifacts():
 
 def main():
     """Main test runner"""
-    print("VibeCortex Test Suite")
+    print("BOXER Test Suite")
     print("=" * 20)
     print(f"Python version: {sys.version}")
     print(f"Test directory: {Path(__file__).parent}")

@@ -1,8 +1,8 @@
 """
-VibeCortex Test Suite
+BOXER Test Suite
 ====================
 
-This package contains comprehensive tests for the VibeCortex data labeling tool.
+This package contains comprehensive tests for the BOXER data labeling tool.
 
 Test Categories:
 - Unit Tests: Individual function testing

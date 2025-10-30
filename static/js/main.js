@@ -1,4 +1,4 @@
-// VibeCortex Main JavaScript
+// BOXER Main JavaScript
 
 document.addEventListener('DOMContentLoaded', function() {
     // Navigation scroll behavior

@@ -1,5 +1,5 @@
 """
-VibeCortex Backend - Multi-User Data Labeling Tool
+BOXER Backend - Multi-User Data Labeling Tool
 """
 
 import io
@@ -37,7 +37,7 @@ from backend.image_utils import (
 
 # Create FastAPI app
 app = FastAPI(
-    title="VibeCortex Data Labeling Tool",
+    title="BOXER Data Labeling Tool",
     description="Multi-user data labeling tool with real-time collaboration",
     version="0.1.0",
     docs_url="/api/docs",
@@ -197,7 +197,7 @@ async def read_root(request: Request) -> HTMLResponse:
             "labeling.html",
             {
                 "request": request,
-                "title": "VibeCortex - Image Labeling Tool",
+                "title": "BOXER - Image Labeling Tool",
                 "project": project,
                 "dataset": dataset,
                 "images": images_data,
@@ -216,7 +216,7 @@ async def health_check() -> Dict[str, str]:
     Returns:
         Dict containing status and message indicating the API is running.
     """
-    return {"status": "healthy", "message": "VibeCortex Data Labeling Tool is running!"}
+    return {"status": "healthy", "message": "BOXER Data Labeling Tool is running!"}
 
 
 # Project endpoints

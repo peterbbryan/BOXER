@@ -32,7 +32,7 @@ class TestAPIContracts(unittest.TestCase):
 
         # Expected values
         self.assertEqual(data["status"], "healthy")
-        self.assertIn("VibeCortex", data["message"])
+        self.assertIn("BOXER", data["message"])
 
     def test_projects_endpoint_contract(self):
         """Test projects endpoint contract"""
