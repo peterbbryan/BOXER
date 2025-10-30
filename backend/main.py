@@ -531,6 +531,43 @@ async def create_label_category(
     }
 
 
+@app.delete("/api/label-categories/{category_id}")
+async def delete_label_category(category_id: int, db: Session = Depends(get_db)):
+    """Delete a label category.
+
+    Args:
+        category_id: ID of the category to delete.
+        db: Database session dependency.
+
+    Returns:
+        Dict containing success message and category_id of the deleted category.
+
+    Raises:
+        HTTPException: If category not found or deletion fails.
+    """
+    # Find the category
+    category = db.query(LabelCategory).filter(LabelCategory.id == category_id).first()
+
+    if not category:
+        raise HTTPException(status_code=404, detail="Category not found")
+
+    try:
+        # Delete the category
+        db.delete(category)
+        db.commit()
+
+        return {
+            "message": "Label category deleted successfully",
+            "category_id": category_id,
+        }
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500, detail=f"Error deleting category: {str(e)}"
+        ) from e
+
+
 # Annotation endpoints
 @app.post("/api/annotations")
 async def create_annotation(
