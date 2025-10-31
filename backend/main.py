@@ -108,6 +108,7 @@ class AnnotationCreate(BaseModel):
 
 class AnnotationUpdate(BaseModel):
     annotation_data: Optional[dict] = None
+    label_category_id: Optional[int] = None
     confidence: Optional[float] = None
     is_verified: Optional[bool] = None
 
@@ -771,6 +772,8 @@ async def update_annotation(
     # Update annotation fields
     if update_data.annotation_data is not None:
         annotation.annotation_data = update_data.annotation_data
+    if update_data.label_category_id is not None:
+        annotation.label_category_id = update_data.label_category_id
     if update_data.confidence is not None:
         annotation.confidence = update_data.confidence
     if update_data.is_verified is not None:

@@ -390,6 +390,12 @@ let dragStartY = 0;
 let annotationOriginalPositions = []; // Store original positions when drag starts
 let lastContextMenuX = 0; // Store last right-click position for context menu
 let lastContextMenuY = 0;
+let isResizingBbox = false; // Track if we're resizing a bounding box
+let resizeHandleType = null; // Type of handle being resized
+let resizingAnnotation = null; // The annotation being resized
+let isDraggingPolygonPoint = false; // Track if we're dragging a polygon point
+let draggedPolygonIndex = null; // Index of the polygon point being dragged
+let draggingPolygon = null; // The polygon annotation being modified
 
 // Zoom and pan variables
 let zoomLevel = 1;
@@ -973,7 +979,7 @@ function updateSelectionActions() {
     const hasSelection = selectedAnnotations && selectedAnnotations.length > 0;
     if (hasSelection) {
         bar.classList.remove('hidden');
-        editBtn.disabled = selectedAnnotations.length !== 1; // edit one at a time
+        editBtn.disabled = false; // Enable for single or multiple annotations
         delBtn.disabled = false;
     } else {
         bar.classList.add('hidden');
@@ -1373,6 +1379,41 @@ function startDrawing(e) {
             // Check if already selected
             const isAlreadySelected = selectedAnnotations.some(sel => sel.id === clickedAnnotation.id);
 
+            // Check if clicking on a resize handle (only for single selections)
+            if (isAlreadySelected && selectedAnnotations.length === 1) {
+                // Check for bounding box resize handle
+                const handleType = getBboxHandleAtPoint(x, y, clickedAnnotation);
+                if (handleType) {
+                    isResizingBbox = true;
+                    resizeHandleType = handleType;
+                    resizingAnnotation = clickedAnnotation;
+                    dragStartX = x;
+                    dragStartY = y;
+                    // Store original coordinates for resize
+                    annotationOriginalPositions = [{
+                        annotation: clickedAnnotation,
+                        originalCoords: JSON.parse(JSON.stringify(clickedAnnotation.coordinates))
+                    }];
+                    return;
+                }
+
+                // Check for polygon point
+                const polygonPointIndex = getPolygonPointAtPoint(x, y, clickedAnnotation);
+                if (polygonPointIndex !== null) {
+                    isDraggingPolygonPoint = true;
+                    draggedPolygonIndex = polygonPointIndex;
+                    draggingPolygon = clickedAnnotation;
+                    dragStartX = x;
+                    dragStartY = y;
+                    // Store original positions
+                    annotationOriginalPositions = [{
+                        annotation: clickedAnnotation,
+                        originalCoords: JSON.parse(JSON.stringify(clickedAnnotation.coordinates))
+                    }];
+                    return;
+                }
+            }
+
             // Multi-select with Ctrl/Cmd key
             if (e.ctrlKey || e.metaKey) {
                 toggleAnnotationSelection(clickedAnnotation);
@@ -1458,6 +1499,18 @@ function draw(e) {
     const currentX = (e.clientX - rect.left - panX) / zoomLevel;
     const currentY = (e.clientY - rect.top - panY) / zoomLevel;
 
+    // Handle bounding box resizing
+    if (isResizingBbox) {
+        resizeBbox(currentX, currentY);
+        return;
+    }
+
+    // Handle polygon point dragging
+    if (isDraggingPolygonPoint) {
+        dragPolygonPoint(currentX, currentY);
+        return;
+    }
+
     // Handle annotation dragging
     if (isDraggingAnnotations) {
         dragAnnotations(currentX, currentY);
@@ -1494,6 +1547,18 @@ function draw(e) {
 }
 
 function stopDrawing(e) {
+    // Handle bounding box resize completion
+    if (isResizingBbox) {
+        stopResizingBbox();
+        return;
+    }
+
+    // Handle polygon point drag completion
+    if (isDraggingPolygonPoint) {
+        stopDraggingPolygonPoint();
+        return;
+    }
+
     // Handle annotation drag completion
     if (isDraggingAnnotations) {
         stopDraggingAnnotations();
@@ -2100,6 +2165,77 @@ function isPointInAnnotation(x, y, annotation) {
     return false;
 }
 
+function getBboxHandleAtPoint(x, y, annotation) {
+    if (annotation.tool !== 'bbox') return null;
+
+    const { startX, startY, endX, endY } = annotation.coordinates;
+
+    // Convert to screen coordinates
+    const screenStartX = startX * zoomLevel + panX;
+    const screenStartY = startY * zoomLevel + panY;
+    const screenEndX = endX * zoomLevel + panX;
+    const screenEndY = endY * zoomLevel + panY;
+
+    // Convert click to screen coordinates
+    const screenX = x * zoomLevel + panX;
+    const screenY = y * zoomLevel + panY;
+
+    // Define handles (8 total: 4 corners + 4 edges)
+    const handleSize = 6;
+    const handleHitRadius = 10; // pixels in screen space
+
+    const handles = [
+        { x: screenStartX, y: screenStartY, type: 'top-left' },
+        { x: (screenStartX + screenEndX) / 2, y: screenStartY, type: 'top' },
+        { x: screenEndX, y: screenStartY, type: 'top-right' },
+        { x: screenEndX, y: (screenStartY + screenEndY) / 2, type: 'right' },
+        { x: screenEndX, y: screenEndY, type: 'bottom-right' },
+        { x: (screenStartX + screenEndX) / 2, y: screenEndY, type: 'bottom' },
+        { x: screenStartX, y: screenEndY, type: 'bottom-left' },
+        { x: screenStartX, y: (screenStartY + screenEndY) / 2, type: 'left' }
+    ];
+
+    // Check if click is on any handle
+    for (const handle of handles) {
+        const dx = screenX - handle.x;
+        const dy = screenY - handle.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        if (distance <= handleHitRadius) {
+            return handle.type;
+        }
+    }
+
+    return null;
+}
+
+function getPolygonPointAtPoint(x, y, annotation) {
+    if (annotation.tool !== 'polygon') return null;
+
+    const { points } = annotation.coordinates;
+    if (!points || points.length === 0) return null;
+
+    const pointHitRadius = 10; // pixels in screen space
+    const screenX = x * zoomLevel + panX;
+    const screenY = y * zoomLevel + panY;
+
+    // Check each point
+    for (let i = 0; i < points.length; i++) {
+        const point = points[i];
+        const pointScreenX = point.x * zoomLevel + panX;
+        const pointScreenY = point.y * zoomLevel + panY;
+
+        const dx = screenX - pointScreenX;
+        const dy = screenY - pointScreenY;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        if (distance <= pointHitRadius) {
+            return i; // Return index of the point
+        }
+    }
+
+    return null;
+}
+
 function selectAnnotation(annotation) {
     // Legacy single-select function (for compatibility)
     selectedAnnotations = [annotation];
@@ -2341,6 +2477,163 @@ function stopDraggingAnnotations() {
     annotationOriginalPositions = [];
 }
 
+function resizeBbox(x, y) {
+    if (!isResizingBbox || !resizingAnnotation || !resizeHandleType) return;
+
+    const deltaX = x - dragStartX;
+    const deltaY = y - dragStartY;
+
+    const coords = resizingAnnotation.coordinates;
+    const { startX, startY, endX, endY } = annotationOriginalPositions[0].originalCoords;
+
+    let newStartX = startX;
+    let newStartY = startY;
+    let newEndX = endX;
+    let newEndY = endY;
+
+    // Apply resize based on handle type
+    switch(resizeHandleType) {
+        case 'top-left':
+            newStartX = startX + deltaX;
+            newStartY = startY + deltaY;
+            break;
+        case 'top':
+            newStartY = startY + deltaY;
+            break;
+        case 'top-right':
+            newEndX = endX + deltaX;
+            newStartY = startY + deltaY;
+            break;
+        case 'right':
+            newEndX = endX + deltaX;
+            break;
+        case 'bottom-right':
+            newEndX = endX + deltaX;
+            newEndY = endY + deltaY;
+            break;
+        case 'bottom':
+            newEndY = endY + deltaY;
+            break;
+        case 'bottom-left':
+            newStartX = startX + deltaX;
+            newEndY = endY + deltaY;
+            break;
+        case 'left':
+            newStartX = startX + deltaX;
+            break;
+    }
+
+    // Clamp to image bounds
+    const clampedStart = clampToImageBounds(newStartX, newStartY);
+    const clampedEnd = clampToImageBounds(newEndX, newEndY);
+
+    coords.startX = clampedStart.x;
+    coords.startY = clampedStart.y;
+    coords.endX = clampedEnd.x;
+    coords.endY = clampedEnd.y;
+
+    drawExistingAnnotations();
+}
+
+function stopResizingBbox() {
+    if (!isResizingBbox) return;
+
+    isResizingBbox = false;
+    resizeHandleType = null;
+    resizingAnnotation = null;
+    dragStartX = 0;
+    dragStartY = 0;
+
+    // Reset cursor
+    const canvas = document.getElementById('annotation-canvas');
+    canvas.style.cursor = currentTool === 'pan' ? 'grab' : (currentTool === 'select' ? 'default' : 'crosshair');
+
+    // Save to database
+    if (selectedAnnotations.length > 0 && selectedAnnotations[0].id && typeof selectedAnnotations[0].id === 'number' && selectedAnnotations[0].id < 1000000) {
+        const annotation = selectedAnnotations[0];
+        fetch(`/api/annotations/${annotation.id}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                annotation_data: {
+                    tool: annotation.tool,
+                    coordinates: annotation.coordinates
+                },
+                confidence: annotation.confidence || 0.5
+            })
+        })
+        .then(() => console.log('Annotation resized and saved'))
+        .catch(error => {
+            console.error('Error saving resized annotation:', error);
+            showNotification('Error saving resized annotation', 'error');
+        });
+    }
+
+    annotationOriginalPositions = [];
+}
+
+function dragPolygonPoint(x, y) {
+    if (!isDraggingPolygonPoint || !draggingPolygon || draggedPolygonIndex === null) return;
+
+    const deltaX = x - dragStartX;
+    const deltaY = y - dragStartY;
+
+    const coords = draggingPolygon.coordinates;
+    const originalPoint = annotationOriginalPositions[0].originalCoords.points[draggedPolygonIndex];
+
+    const newX = originalPoint.x + deltaX;
+    const newY = originalPoint.y + deltaY;
+
+    // Clamp to image bounds
+    const clamped = clampToImageBounds(newX, newY);
+
+    coords.points[draggedPolygonIndex].x = clamped.x;
+    coords.points[draggedPolygonIndex].y = clamped.y;
+
+    drawExistingAnnotations();
+}
+
+function stopDraggingPolygonPoint() {
+    if (!isDraggingPolygonPoint) return;
+
+    isDraggingPolygonPoint = false;
+    draggedPolygonIndex = null;
+    draggingPolygon = null;
+    dragStartX = 0;
+    dragStartY = 0;
+
+    // Reset cursor
+    const canvas = document.getElementById('annotation-canvas');
+    canvas.style.cursor = currentTool === 'pan' ? 'grab' : (currentTool === 'select' ? 'default' : 'crosshair');
+
+    // Save to database
+    if (selectedAnnotations.length > 0 && selectedAnnotations[0].id && typeof selectedAnnotations[0].id === 'number' && selectedAnnotations[0].id < 1000000) {
+        const annotation = selectedAnnotations[0];
+        fetch(`/api/annotations/${annotation.id}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                annotation_data: {
+                    tool: annotation.tool,
+                    coordinates: annotation.coordinates
+                },
+                confidence: annotation.confidence || 0.5
+            })
+        })
+        .then(() => console.log('Polygon point moved and saved'))
+        .catch(error => {
+            console.error('Error saving polygon point position:', error);
+            showNotification('Error saving polygon point', 'error');
+        });
+    }
+
+    annotationOriginalPositions = [];
+}
+
 function showAnnotationContextMenu() {
     const contextMenu = document.getElementById('annotation-context-menu');
     if (contextMenu && selectedAnnotations.length > 0) {
@@ -2529,26 +2822,83 @@ function clearAllData() {
 function editAnnotation() {
     if (selectedAnnotations.length === 0) return;
 
-    // For now, just show a simple prompt for editing category (only works for single selection)
-    if (selectedAnnotations.length > 1) {
-        showNotification('Editing multiple annotations is not yet supported', 'error');
+    // Show prompt to select new category
+    const firstAnnotation = selectedAnnotations[0];
+    const currentCategoryName = labelCategories.find(cat => cat.id === firstAnnotation.label_category_id)?.name || '';
+
+    // Build category list for the prompt
+    const categoryList = labelCategories.map((cat, idx) => `${idx + 1}. ${cat.name}`).join('\n');
+    const promptText = `Current category: ${currentCategoryName}\n\nSelect new category:\n${categoryList}\n\nEnter category name or number:`;
+
+    const newCategoryInput = prompt(promptText, currentCategoryName);
+
+    if (!newCategoryInput || !newCategoryInput.trim()) {
+        return; // User cancelled or entered empty string
+    }
+
+    const trimmedInput = newCategoryInput.trim();
+
+    // Try to find category by name or number
+    let newCategory;
+
+    // Check if input is a number
+    const categoryNumber = parseInt(trimmedInput, 10);
+    if (!isNaN(categoryNumber) && categoryNumber >= 1 && categoryNumber <= labelCategories.length) {
+        newCategory = labelCategories[categoryNumber - 1];
+    } else {
+        // Try to find by name (case insensitive)
+        newCategory = labelCategories.find(cat => cat.name.toLowerCase() === trimmedInput.toLowerCase());
+    }
+
+    if (!newCategory) {
+        showNotification('Category not found!', 'error');
         return;
     }
 
-    const annotation = selectedAnnotations[0];
-    const newCategoryName = prompt('Edit annotation category:',
-        labelCategories.find(cat => cat.id === annotation.label_category_id)?.name || '');
+    // Update all selected annotations
+    const promises = [];
+    selectedAnnotations.forEach(annotation => {
+        annotation.label_category_id = newCategory.id;
 
-    if (newCategoryName && newCategoryName.trim()) {
-        const newCategory = labelCategories.find(cat => cat.name.toLowerCase() === newCategoryName.toLowerCase());
-        if (newCategory) {
-            annotation.label_category_id = newCategory.id;
-            drawExistingAnnotations();
-            showNotification('Annotation updated!', 'success');
-        } else {
-            showNotification('Category not found!', 'error');
+        // Update in database if it has a database ID
+        if (annotation.id && typeof annotation.id === 'number' && annotation.id < 1000000) {
+            promises.push(
+                fetch(`/api/annotations/${annotation.id}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        annotation_data: {
+                            tool: annotation.tool,
+                            coordinates: annotation.coordinates
+                        },
+                        label_category_id: newCategory.id,
+                        confidence: annotation.confidence || 0.5
+                    })
+                })
+            );
         }
+    });
+
+    // Update UI
+    drawExistingAnnotations();
+
+    // Show notification
+    const count = selectedAnnotations.length;
+    if (count === 1) {
+        showNotification(`Annotation category updated to "${newCategory.name}"!`, 'success');
+    } else {
+        showNotification(`${count} annotations updated to "${newCategory.name}"!`, 'success');
     }
+
+    // Wait for all database updates to complete
+    Promise.all(promises).then(() => {
+        console.log(`Updated ${promises.length} annotations in database`);
+    }).catch(error => {
+        console.error('Error updating annotations in database:', error);
+        showNotification('Warning: Some annotations may not have been saved', 'error');
+    });
 }
 
 function deleteSelectedAnnotation() {
