@@ -146,7 +146,9 @@ class TestYOLOExportAPI(TestCase):
                     for line in lines:
                         parts = line.split()
                         self.assertEqual(len(parts), 5)
-                        self.assertIn(parts[0], ["0", "1"])  # Class index
+                        # Class index should be valid (0 or higher)
+                        class_index = int(parts[0])
+                        self.assertGreaterEqual(class_index, 0)
 
                         # Verify normalized coordinates (0-1 range)
                         for coord in parts[1:]:

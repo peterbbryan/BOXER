@@ -531,6 +531,59 @@ async def create_label_category(
     }
 
 
+class LabelCategoryUpdate(BaseModel):
+    name: Optional[str] = None
+    color: Optional[str] = None
+
+
+@app.put("/api/label-categories/{category_id}")
+async def update_label_category(
+    category_id: int, update: LabelCategoryUpdate, db: Session = Depends(get_db)
+):
+    """Update a label category's name and/or color.
+
+    Args:
+        category_id: ID of the category to update.
+        update: Fields to update (name/color).
+        db: Database session dependency.
+
+    Returns:
+        Dict with success message and updated fields.
+    """
+    category = db.query(LabelCategory).filter(LabelCategory.id == category_id).first()
+    if not category:
+        raise HTTPException(status_code=404, detail="Category not found")
+
+    # Apply updates if provided
+    if update.name is not None:
+        # Ensure no duplicate within the same project
+        exists = (
+            db.query(LabelCategory)
+            .filter(
+                LabelCategory.project_id == category.project_id,
+                LabelCategory.name == update.name,
+                LabelCategory.id != category_id,
+            )
+            .first()
+        )
+        if exists:
+            raise HTTPException(status_code=400, detail="Category name already exists")
+        category.name = update.name
+
+    if update.color is not None:
+        category.color = update.color
+
+    db.commit()
+    db.refresh(category)
+
+    return {
+        "message": "Label category updated successfully",
+        "category_id": category.id,
+        "name": category.name,
+        "color": category.color,
+    }
+
+
 @app.delete("/api/label-categories/{category_id}")
 async def delete_label_category(category_id: int, db: Session = Depends(get_db)):
     """Delete a label category.

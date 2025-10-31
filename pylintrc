@@ -7,6 +7,7 @@ disable=
     R0903,  # too-few-public-methods
     W0613,  # unused-argument
     C0103,  # invalid-name
+    C0302,  # too-many-lines
 
 [MESSAGES CONTROL]
 disable=

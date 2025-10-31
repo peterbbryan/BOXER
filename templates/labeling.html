@@ -86,11 +86,19 @@
                             <div class="w-4 h-4 rounded-full mr-3" style="background-color: {{ category.color }}"></div>
                             <span class="text-sm font-medium text-gray-200">{{ category.name }}</span>
                         </div>
+                        <div class="flex items-center space-x-1">
+                            <button type="button" class="edit-category-btn opacity-0 group-hover:opacity-100 transition-opacity px-2 py-1 text-blue-400 hover:text-blue-300 hover:bg-gray-600 rounded"
+                                    data-category-id="{{ category.id }}"
+                                    data-category-name="{{ category.name }}"
+                                    title="Edit category name">
+                                <i class="fas fa-pen text-xs"></i>
+                            </button>
                         <button type="button" class="delete-category-btn opacity-0 group-hover:opacity-100 transition-opacity px-2 py-1 text-red-400 hover:text-red-300 hover:bg-gray-600 rounded"
                                 data-category-id="{{ category.id }}"
                                 data-category-name="{{ category.name }}">
                             <i class="fas fa-times text-xs"></i>
                         </button>
+                        </div>
                     </div>
                     {% endfor %}
                 </div>
@@ -673,6 +681,19 @@ function setupEventListeners() {
             const categoryName = deleteBtn.getAttribute('data-category-name');
             console.log('Delete button clicked via event delegation:', {categoryId, categoryName});
             deleteCategory(categoryId, categoryName);
+        }
+    });
+
+    // Add event delegation for edit category buttons
+    document.addEventListener('click', function(e) {
+        const editBtn = e.target.closest('.edit-category-btn');
+        if (editBtn) {
+            e.preventDefault();
+            e.stopPropagation();
+            const categoryId = editBtn.getAttribute('data-category-id');
+            const oldName = editBtn.getAttribute('data-category-name');
+            console.log('Edit button clicked via event delegation:', {categoryId, oldName});
+            editCategoryName(categoryId, oldName);
         }
     });
 }
@@ -1772,6 +1793,37 @@ function deleteCategory(categoryId, categoryName) {
     .catch(error => {
         console.error('Error deleting category:', error);
         showNotification(`Error deleting category: ${error.message}`, 'error');
+    });
+}
+
+function editCategoryName(categoryId, oldName) {
+    const newName = prompt('Edit category name:', oldName || '');
+    if (!newName || !newName.trim()) {
+        return;
+    }
+
+    fetch(`/api/label-categories/${parseInt(categoryId, 10)}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ name: newName.trim() })
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(data => {
+                throw new Error(data.detail || 'Error updating category');
+            });
+        }
+        return response.json();
+    })
+    .then(data => {
+        showNotification('Category updated successfully!', 'success');
+        setTimeout(() => location.reload(), 500);
+    })
+    .catch(error => {
+        console.error('Error updating category:', error);
+        showNotification(`Error updating category: ${error.message}`, 'error');
     });
 }
 
