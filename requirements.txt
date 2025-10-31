@@ -20,6 +20,7 @@ numpy>=1.24.0
 sqlalchemy>=2.0.0
 alembic>=1.12.0
 websockets>=11.0.0
+ultralytics>=8.0.0
 
 # Development dependencies
 pytest>=7.0.0

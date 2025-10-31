@@ -1000,5 +1000,135 @@ async def import_yolo_classes(
     }
 
 
+class ModelRunRequest(BaseModel):
+    """Request model for running YOLO models.
+
+    Attributes:
+        image_id: ID of the image to run the model on.
+        model_name: Name of the YOLO model to run (e.g., 'yolov8n.pt').
+    """
+
+    image_id: int
+    model_name: str
+
+
+@app.post("/api/run-model")
+async def run_model(  # pylint: disable=too-many-locals
+    request: ModelRunRequest, db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """Run a pretrained YOLO model on an image to generate annotations.
+
+    Args:
+        request: Request containing image_id and model_name.
+        db: Database session dependency.
+
+    Returns:
+        Dict containing success message and detection count.
+
+    Raises:
+        HTTPException: If image not found, model doesn't exist, or execution fails.
+    """
+    # Verify image exists
+    image = db.query(Image).filter(Image.id == request.image_id).first()
+    if not image:
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    # Check if ultralytics is available
+    try:
+        from ultralytics import YOLO  # pylint: disable=import-outside-toplevel
+    except ImportError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Ultralytics package not installed. Run: pip install ultralytics",
+        ) from exc
+
+    try:
+        # Load the model
+        model = YOLO(request.model_name)
+
+        # Get the image path
+        backend_dir = os.path.dirname(os.path.abspath(__file__))
+        proj_root = os.path.dirname(backend_dir)
+        image_path = os.path.join(proj_root, image.file_path)
+
+        if not os.path.exists(image_path):
+            raise HTTPException(status_code=404, detail="Image file not found")
+
+        # Run inference
+        results = model(image_path)
+
+        # Parse results and create annotations
+        detections = []
+        for result in results:
+            boxes = result.boxes
+            for box in boxes:
+                # Get coordinates in xyxy format (absolute pixels)
+                x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
+                # Get class name
+                class_id = int(box.cls[0].cpu().numpy())
+                class_name = model.names[class_id]
+                confidence = float(box.conf[0].cpu().numpy())
+
+                # Find or create label category
+                category = (
+                    db.query(LabelCategory)
+                    .filter(
+                        LabelCategory.name == class_name,
+                        LabelCategory.project_id == image.dataset.project_id,
+                    )
+                    .first()
+                )
+
+                if not category:
+                    # Create new category with random color
+                    category = LabelCategory(
+                        name=class_name,
+                        color=generate_random_color(),
+                        project_id=image.dataset.project_id,
+                    )
+                    db.add(category)
+                    db.commit()
+                    db.refresh(category)
+
+                # Create annotation
+                annotation = Annotation(
+                    image_id=request.image_id,
+                    dataset_id=image.dataset_id,
+                    label_category_id=category.id,
+                    annotation_data={
+                        "tool": "bbox",
+                        "coordinates": {
+                            "startX": x1,
+                            "startY": y1,
+                            "endX": x2,
+                            "endY": y2,
+                        },
+                    },
+                    confidence=confidence,
+                )
+                db.add(annotation)
+                detections.append(
+                    {
+                        "class": class_name,
+                        "confidence": confidence,
+                        "bbox": [x1, y1, x2, y2],
+                    }
+                )
+
+        db.commit()
+
+        return {
+            "message": f"Model {request.model_name} processed successfully",
+            "detections": detections,
+            "count": len(detections),
+        }
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500, detail=f"Error running model: {str(e)}"
+        ) from e
+
+
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True, log_level="info")

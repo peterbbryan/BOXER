@@ -71,6 +71,28 @@
         </div>
     </div>
 
+    <!-- Context Menu for Model Selection -->
+    <div id="model-context-menu" class="fixed bg-gray-800 border border-gray-600 rounded-lg shadow-lg z-50 hidden" style="min-width: 250px;">
+        <div class="py-1">
+            <div class="px-4 py-2 text-xs text-gray-400 border-b border-gray-700">Select YOLO Model</div>
+            <button class="model-option w-full px-4 py-2 text-left text-sm text-purple-400 hover:bg-gray-700 flex items-center" data-model="yolov8n.pt">
+                <i class="fas fa-brain mr-2"></i>YOLOv8 Nano (Fastest)
+            </button>
+            <button class="model-option w-full px-4 py-2 text-left text-sm text-purple-400 hover:bg-gray-700 flex items-center" data-model="yolov8s.pt">
+                <i class="fas fa-brain mr-2"></i>YOLOv8 Small
+            </button>
+            <button class="model-option w-full px-4 py-2 text-left text-sm text-purple-400 hover:bg-gray-700 flex items-center" data-model="yolov8m.pt">
+                <i class="fas fa-brain mr-2"></i>YOLOv8 Medium
+            </button>
+            <button class="model-option w-full px-4 py-2 text-left text-sm text-purple-400 hover:bg-gray-700 flex items-center" data-model="yolov8l.pt">
+                <i class="fas fa-brain mr-2"></i>YOLOv8 Large
+            </button>
+            <button class="model-option w-full px-4 py-2 text-left text-sm text-purple-400 hover:bg-gray-700 flex items-center" data-model="yolov8x.pt">
+                <i class="fas fa-brain mr-2"></i>YOLOv8 Extra Large (Most Accurate)
+            </button>
+        </div>
+    </div>
+
     <div class="flex-1 flex">
         <!-- Sidebar -->
         <div class="w-80 bg-gray-800 border-r border-gray-700 flex flex-col">
@@ -182,6 +204,10 @@
                         </button>
                         <button id="import-yolo-classes" class="tool-btn px-3 py-1 rounded text-sm font-medium text-blue-400 hover:bg-blue-900 hover:text-blue-300" title="Import YOLO classes from classes.txt">
                             <i class="fas fa-upload mr-1"></i>Import Classes
+                        </button>
+                        <div class="w-px h-6 bg-gray-600"></div>
+                        <button id="run-model-btn" class="tool-btn px-3 py-1 rounded text-sm font-medium text-purple-400 hover:bg-purple-900 hover:text-purple-300" title="Run pretrained YOLO model to auto-annotate">
+                            <i class="fas fa-brain mr-1"></i>Run AI Model
                         </button>
                     </div>
                     <div class="flex items-center space-x-2">
@@ -466,6 +492,11 @@ function setupEventListeners() {
             // Handle import classes button separately
             if (this.id === 'import-yolo-classes') {
                 importYOLOClasses();
+                return;
+            }
+            // Handle run model button separately
+            if (this.id === 'run-model-btn') {
+                showModelContextMenu(event);
                 return;
             }
 
@@ -777,6 +808,26 @@ function setupEventListeners() {
             const oldName = editBtn.getAttribute('data-category-name');
             console.log('Edit button clicked via event delegation:', {categoryId, oldName});
             editCategoryName(categoryId, oldName);
+        }
+    });
+
+    // Add event delegation for model option buttons
+    document.addEventListener('click', function(e) {
+        const modelOption = e.target.closest('.model-option');
+        if (modelOption) {
+            e.preventDefault();
+            e.stopPropagation();
+            const modelName = modelOption.getAttribute('data-model');
+            console.log('Model option clicked:', modelName);
+            runModel(modelName);
+        }
+    });
+
+    // Hide model context menu when clicking elsewhere
+    document.addEventListener('click', function(e) {
+        // Only hide if clicking outside both the button and the context menu
+        if (!e.target.closest('#model-context-menu') && !e.target.closest('#run-model-btn')) {
+            hideModelContextMenu();
         }
     });
 }
@@ -2296,6 +2347,78 @@ function hideAnnotationContextMenu() {
     if (contextMenu) {
         contextMenu.classList.add('hidden');
     }
+}
+
+function showModelContextMenu(event) {
+    const contextMenu = document.getElementById('model-context-menu');
+    if (contextMenu) {
+        // Position menu near the button
+        const button = document.getElementById('run-model-btn');
+        const rect = button.getBoundingClientRect();
+        const x = rect.left;
+        const y = rect.bottom + 5;
+
+        contextMenu.style.left = x + 'px';
+        contextMenu.style.top = y + 'px';
+        contextMenu.style.position = 'fixed';
+        contextMenu.style.zIndex = '9999';
+        contextMenu.classList.remove('hidden');
+    }
+}
+
+function hideModelContextMenu() {
+    const contextMenu = document.getElementById('model-context-menu');
+    if (contextMenu) {
+        contextMenu.classList.add('hidden');
+    }
+}
+
+function runModel(modelName) {
+    hideModelContextMenu();
+
+    // Check if image is loaded
+    if (images.length === 0 || currentImageIndex < 0) {
+        showNotification('Please load an image first', 'error');
+        return;
+    }
+
+    const currentImage = images[currentImageIndex];
+    if (!currentImage) {
+        showNotification('No image selected', 'error');
+        return;
+    }
+
+    showNotification(`Running ${modelName} on image...`, 'info');
+
+    // Call backend API to run model
+    fetch(`/api/run-model`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            image_id: currentImage.id,
+            model_name: modelName
+        })
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(data => {
+                throw new Error(data.detail || 'Error running model');
+            });
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('Model results:', data);
+        showNotification(`Model detected ${data.detections?.length || 0} objects`, 'success');
+        // Reload annotations to show the new ones
+        loadImageAnnotations();
+    })
+    .catch(error => {
+        console.error('Error running model:', error);
+        showNotification(`Error running model: ${error.message}`, 'error');
+    });
 }
 
 function editAnnotation() {
