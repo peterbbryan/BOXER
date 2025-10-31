@@ -141,29 +141,68 @@ def cleanup_test_files():
 
 
 def cleanup_test_categories():
-    """Remove test label categories from the database"""
+    """Remove test label categories from the database.
+
+    Only removes categories with specific test-related names:
+    - "Test Category%" (pattern: matches "Test Category", "Test Category 1", etc.)
+    - "Test" (exact match)
+    - "test" (exact match)
+    - "Class1" (exact match - created by YOLO export tests)
+    - "Class2" (exact match - created by YOLO export tests)
+
+    Production categories with other names (e.g., "person", "car", custom names)
+    are NOT affected by this cleanup.
+    """
     from backend.database import SessionLocal, LabelCategory, Annotation
 
     db = SessionLocal()
     try:
-        # Find test categories
-        test_categories = (
-            db.query(LabelCategory)
-            .filter(
-                (LabelCategory.name.like("Test Category%"))
-                | (LabelCategory.name == "Test")
-                | (LabelCategory.name == "test")
-                | (LabelCategory.name == "Class1")
-                | (LabelCategory.name == "Class2")
-            )
-            .all()
-        )
+        # Define test category names - ONLY these specific names will be deleted
+        # This ensures production categories are never accidentally removed
+        TEST_CATEGORY_NAMES = [
+            "Test Category%",  # Pattern match
+            "Test",  # Exact match
+            "test",  # Exact match
+            "Class1",  # Exact match (YOLO test category)
+            "Class2",  # Exact match (YOLO test category)
+        ]
+
+        # Find test categories using specific test names only
+        filters = []
+        for name in TEST_CATEGORY_NAMES:
+            if name.endswith("%"):
+                # Pattern match
+                filters.append(LabelCategory.name.like(name))
+            else:
+                # Exact match
+                filters.append(LabelCategory.name == name)
+
+        from sqlalchemy import or_
+
+        test_categories = db.query(LabelCategory).filter(or_(*filters)).all()
+
+        # Show all categories before cleanup for verification
+        all_categories = db.query(LabelCategory).all()
+        if all_categories:
+            print(f"\n📊 Current categories in database ({len(all_categories)} total):")
+            for cat in all_categories:
+                is_test = cat in test_categories
+                status = (
+                    "🗑️  TEST (will be deleted)"
+                    if is_test
+                    else "✅ PRODUCTION (preserved)"
+                )
+                print(
+                    f"  {status}: {cat.name} (ID: {cat.id}, project: {cat.project_id})"
+                )
 
         if not test_categories:
-            print("No test categories found to clean up")
+            print(
+                "\n✅ No test categories found to clean up - all categories are production"
+            )
             return 0
 
-        print(f"Found {len(test_categories)} test categories to clean up")
+        print(f"\n🗑️  Found {len(test_categories)} test categories to clean up:")
         for cat in test_categories:
             print(f"  - {cat.name} (ID: {cat.id}, project: {cat.project_id})")
 
@@ -181,8 +220,27 @@ def cleanup_test_categories():
         )
 
         db.commit()
-        print(f"Deleted {deleted} test categories")
+        print(f"\n✅ Deleted {deleted} test categories and associated annotations")
+
+        # Show remaining production categories
+        remaining_categories = db.query(LabelCategory).all()
+        if remaining_categories:
+            print(
+                f"\n✅ Preserved {len(remaining_categories)} production category(ies):"
+            )
+            for cat in remaining_categories:
+                print(f"  - {cat.name} (ID: {cat.id}, project: {cat.project_id})")
+        else:
+            print("\nℹ️  No categories remain in database")
+
         return deleted
+    except Exception as e:
+        db.rollback()
+        print(f"❌ Error cleaning test categories: {e}")
+        import traceback
+
+        traceback.print_exc()
+        raise
     finally:
         db.close()
 
