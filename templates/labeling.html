@@ -1425,7 +1425,7 @@ function draw(e) {
 
     if (currentTool === 'bbox') {
         ctx.strokeStyle = getCategoryColor(selectedCategory);
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 3;
         ctx.strokeRect(screenStartX, screenStartY, screenCurrentX - screenStartX, screenCurrentY - screenStartY);
     } else if (currentTool === 'point') {
         ctx.fillStyle = getCategoryColor(selectedCategory);
@@ -1590,7 +1590,7 @@ function drawExistingAnnotations() {
         // Draw annotation
         ctx.strokeStyle = getCategoryColor(annotation.label_category_id);
         ctx.fillStyle = getCategoryColor(annotation.label_category_id);
-        ctx.lineWidth = isSelected ? 3 : 2;
+        ctx.lineWidth = isSelected ? 4 : 3;
 
         if (annotation.tool === 'bbox') {
             const { startX, startY, endX, endY } = annotation.coordinates;
@@ -2413,7 +2413,7 @@ function runModel(modelName) {
         console.log('Model results:', data);
         showNotification(`Model detected ${data.detections?.length || 0} objects`, 'success');
         // Reload annotations to show the new ones
-        loadImageAnnotations();
+        loadImageAnnotations(currentImage.id);
     })
     .catch(error => {
         console.error('Error running model:', error);
