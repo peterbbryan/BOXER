@@ -1761,13 +1761,21 @@ function drawExistingAnnotations() {
                 ctx.closePath();
                 ctx.stroke();
 
-                // Draw points
+                // Draw points (larger when selected)
+                const pointSize = isSelected ? 6 : 5;
                 points.forEach(point => {
                     const screenX = point.x * zoomLevel + panX;
                     const screenY = point.y * zoomLevel + panY;
                     ctx.beginPath();
-                    ctx.arc(screenX, screenY, 3, 0, 2 * Math.PI);
+                    ctx.arc(screenX, screenY, pointSize, 0, 2 * Math.PI);
                     ctx.fill();
+
+                    // Draw white outline when selected
+                    if (isSelected) {
+                        ctx.strokeStyle = '#ffffff';
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+                    }
                 });
             }
         }
@@ -2182,7 +2190,7 @@ function getBboxHandleAtPoint(x, y, annotation) {
 
     // Define handles (8 total: 4 corners + 4 edges)
     const handleSize = 6;
-    const handleHitRadius = 10; // pixels in screen space
+    const handleHitRadius = 15; // pixels in screen space (increased for easier grabbing)
 
     const handles = [
         { x: screenStartX, y: screenStartY, type: 'top-left' },
@@ -2214,7 +2222,7 @@ function getPolygonPointAtPoint(x, y, annotation) {
     const { points } = annotation.coordinates;
     if (!points || points.length === 0) return null;
 
-    const pointHitRadius = 10; // pixels in screen space
+    const pointHitRadius = 15; // pixels in screen space (increased for easier grabbing)
     const screenX = x * zoomLevel + panX;
     const screenY = y * zoomLevel + panY;
 
