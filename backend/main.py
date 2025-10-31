@@ -1135,5 +1135,79 @@ async def run_model(  # pylint: disable=too-many-locals
         ) from e
 
 
+@app.post("/api/advanced/clear-all")  # pylint: disable=too-many-locals
+async def clear_all_data(  # pylint: disable=too-many-locals
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    """Clear all data from the system.
+
+    This deletes:
+    - All images and thumbnails from uploads directory
+    - All database records (projects, datasets, images, annotations, categories)
+
+    Args:
+        db: Database session dependency.
+
+    Returns:
+        Dict containing success message and counts of deleted records.
+
+    Warning:
+        This is a destructive operation that cannot be undone.
+    """
+    try:
+        # Count records before deletion
+        project_count = db.query(Project).count()
+        dataset_count = db.query(Dataset).count()
+        image_count = db.query(Image).count()
+        annotation_count = db.query(Annotation).count()
+        category_count = db.query(LabelCategory).count()
+
+        # Delete all records from database (order matters due to foreign keys)
+        db.query(Annotation).delete()
+        db.query(Image).delete()
+        db.query(LabelCategory).delete()
+        db.query(Dataset).delete()
+        db.query(Project).delete()
+
+        db.commit()
+
+        # Delete all files from uploads directory
+        backend_dir = os.path.dirname(os.path.abspath(__file__))
+        proj_root = os.path.dirname(backend_dir)
+        uploads_path = os.path.join(proj_root, "uploads")
+        thumbnails_dir = os.path.join(uploads_path, "thumbnails")
+        images_dir = os.path.join(uploads_path, "images")
+
+        deleted_files = 0
+        for directory in [images_dir, thumbnails_dir]:
+            if os.path.exists(directory):
+                for filename in os.listdir(directory):
+                    file_path = os.path.join(directory, filename)
+                    try:
+                        if os.path.isfile(file_path):
+                            os.remove(file_path)
+                            deleted_files += 1
+                    except OSError as file_error:
+                        print(f"Error deleting file {file_path}: {file_error}")
+
+        return {
+            "message": "All data cleared successfully",
+            "deleted": {
+                "projects": project_count,
+                "datasets": dataset_count,
+                "images": image_count,
+                "annotations": annotation_count,
+                "categories": category_count,
+                "files": deleted_files,
+            },
+        }
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500, detail=f"Error clearing data: {str(e)}"
+        ) from e
+
+
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True, log_level="info")

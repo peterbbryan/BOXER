@@ -55,6 +55,9 @@
                 <div class="text-sm text-gray-400">
                     <span id="current-image">1</span> of <span id="total-images">{{ images|length }}</span>
                 </div>
+                <button id="advanced-btn" class="px-3 py-1 rounded text-sm font-medium text-yellow-400 hover:bg-yellow-900 hover:text-yellow-300" title="Advanced operations">
+                    <i class="fas fa-cog mr-1"></i>Advanced
+                </button>
             </div>
         </div>
     </div>
@@ -90,6 +93,36 @@
             <button class="model-option w-full px-4 py-2 text-left text-sm text-purple-400 hover:bg-gray-700 flex items-center" data-model="yolov8x.pt">
                 <i class="fas fa-brain mr-2"></i>YOLOv8 Extra Large (Most Accurate)
             </button>
+        </div>
+    </div>
+
+    <!-- Advanced Operations Modal -->
+    <div id="advanced-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center">
+        <div class="bg-gray-800 rounded-lg shadow-xl p-6 max-w-md w-full">
+            <h3 class="text-xl font-bold text-white mb-4">⚠️ Advanced Operations</h3>
+            <div class="space-y-4">
+                <div class="bg-red-900 bg-opacity-20 border border-red-600 rounded p-3">
+                    <p class="text-red-400 text-sm">
+                        <strong>Warning:</strong> This will permanently delete all images, thumbnails, and database records. This action cannot be undone.
+                    </p>
+                </div>
+                <div class="text-gray-300 text-sm">
+                    This operation will:
+                    <ul class="list-disc list-inside mt-2 space-y-1">
+                        <li>Delete all images from the uploads directory</li>
+                        <li>Delete all thumbnails</li>
+                        <li>Clear all database records (projects, datasets, images, annotations, categories)</li>
+                    </ul>
+                </div>
+                <div class="flex space-x-3 pt-4">
+                    <button id="confirm-advanced-clear" class="flex-1 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 font-medium">
+                        Clear Everything
+                    </button>
+                    <button id="cancel-advanced-clear" class="flex-1 px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 font-medium">
+                        Cancel
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -830,6 +863,28 @@ function setupEventListeners() {
             hideModelContextMenu();
         }
     });
+
+    // Advanced button
+    const advancedBtn = document.getElementById('advanced-btn');
+    if (advancedBtn) {
+        advancedBtn.addEventListener('click', function() {
+            showAdvancedModal();
+        });
+    }
+
+    // Advanced modal handlers
+    const confirmAdvancedClear = document.getElementById('confirm-advanced-clear');
+    const cancelAdvancedClear = document.getElementById('cancel-advanced-clear');
+    if (confirmAdvancedClear) {
+        confirmAdvancedClear.addEventListener('click', function() {
+            clearAllData();
+        });
+    }
+    if (cancelAdvancedClear) {
+        cancelAdvancedClear.addEventListener('click', function() {
+            hideAdvancedModal();
+        });
+    }
 }
 
 function loadImage(index) {
@@ -2418,6 +2473,54 @@ function runModel(modelName) {
     .catch(error => {
         console.error('Error running model:', error);
         showNotification(`Error running model: ${error.message}`, 'error');
+    });
+}
+
+function showAdvancedModal() {
+    const modal = document.getElementById('advanced-modal');
+    if (modal) {
+        modal.classList.remove('hidden');
+    }
+}
+
+function hideAdvancedModal() {
+    const modal = document.getElementById('advanced-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+    }
+}
+
+function clearAllData() {
+    hideAdvancedModal();
+
+    showNotification('Clearing all data...', 'info');
+
+    // Call backend API to clear all data
+    fetch(`/api/advanced/clear-all`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(data => {
+                throw new Error(data.detail || 'Error clearing data');
+            });
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('Clear all data result:', data);
+        showNotification('All data cleared successfully! Reloading page...', 'success');
+        // Reload page to reset UI
+        setTimeout(() => {
+            location.reload();
+        }, 2000);
+    })
+    .catch(error => {
+        console.error('Error clearing data:', error);
+        showNotification(`Error clearing data: ${error.message}`, 'error');
     });
 }
 
