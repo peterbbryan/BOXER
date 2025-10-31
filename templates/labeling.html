@@ -1986,12 +1986,41 @@ function pasteAnnotations() {
         // Create new annotations with fresh IDs
         const newAnnotations = annotationsToPaste.map(annotation => {
             const newId = Date.now() + Math.random(); // Generate unique ID
+
+            // Clamp coordinates to current image bounds
+            let clampedCoords = annotation.coordinates;
+            if (annotation.tool === 'bbox') {
+                const clampedStart = clampToImageBounds(annotation.coordinates.startX, annotation.coordinates.startY);
+                const clampedEnd = clampToImageBounds(annotation.coordinates.endX, annotation.coordinates.endY);
+                clampedCoords = {
+                    startX: clampedStart.x,
+                    startY: clampedStart.y,
+                    endX: clampedEnd.x,
+                    endY: clampedEnd.y
+                };
+            } else if (annotation.tool === 'point') {
+                const clamped = clampToImageBounds(annotation.coordinates.startX, annotation.coordinates.startY);
+                clampedCoords = {
+                    startX: clamped.x,
+                    startY: clamped.y,
+                    endX: clamped.x,
+                    endY: clamped.y
+                };
+            } else if (annotation.tool === 'polygon') {
+                clampedCoords = {
+                    points: annotation.coordinates.points.map(point => {
+                        const clamped = clampToImageBounds(point.x, point.y);
+                        return { x: clamped.x, y: clamped.y };
+                    })
+                };
+            }
+
             return {
                 id: newId,
                 image_id: currentImageId,
                 label_category_id: annotation.label_category_id,
                 tool: annotation.tool,
-                coordinates: annotation.coordinates,
+                coordinates: clampedCoords,
                 confidence: annotation.confidence,
                 created_at: new Date().toISOString()
             };
