@@ -18,7 +18,7 @@ repos:
 
       - id: tests
         name: run-all-tests
-        entry: bash -c 'cd tests && python cleanup_utils.py && python run_tests.py'
+        entry: bash -c 'cd tests && python run_tests.py'
         language: system
         files: ^(backend/.*\.py|templates/.*\.html|tests/.*\.py)$
         pass_filenames: false

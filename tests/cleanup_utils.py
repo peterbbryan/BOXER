@@ -84,56 +84,58 @@ def cleanup_test_files():
         db.close()
 
     # Remove test images from filesystem (match all extensions)
-    for ext in [".jpg", ".jpeg", ".png", ".bmp"]:
-        if uploads_images.exists():
-            test_files = list(uploads_images.glob(f"test_*{ext}")) + list(
-                uploads_images.glob(f"ui_test_*{ext}")
-            )
-            for test_file in test_files:
-                try:
-                    os.remove(test_file)
-                    removed_count += 1
-                except OSError:
-                    pass
+    # This also removes orphaned files that aren't in the database
+    directories_to_clean = [
+        (uploads_images, uploads_thumbnails),
+        (
+            project_root / "backend" / "uploads" / "images",
+            project_root / "backend" / "uploads" / "thumbnails",
+        ),
+    ]
 
-        # Remove test thumbnails
-        if uploads_thumbnails.exists():
-            test_thumbnails = list(
-                uploads_thumbnails.glob(f"thumb_test_*{ext}")
-            ) + list(uploads_thumbnails.glob(f"thumb_ui_test_*{ext}"))
-            for test_file in test_thumbnails:
-                try:
-                    os.remove(test_file)
-                    removed_count += 1
-                except OSError:
-                    pass
+    for images_dir, thumbnails_dir in directories_to_clean:
+        for ext in [".jpg", ".jpeg", ".png", ".bmp"]:
+            # Clean main images - match all test patterns
+            if images_dir.exists():
+                test_patterns = [
+                    f"test_*{ext}",
+                    f"ui_test_*{ext}",
+                    f"concurrent_*{ext}",
+                    f"persistence_test_*{ext}",
+                    f"test_workflow_*{ext}",
+                ]
+                test_files = []
+                for pattern in test_patterns:
+                    test_files.extend(list(images_dir.glob(pattern)))
 
-    # Clean up backend/uploads if it exists
-    backend_uploads_images = project_root / "backend" / "uploads" / "images"
-    backend_uploads_thumbnails = project_root / "backend" / "uploads" / "thumbnails"
+                for test_file in test_files:
+                    try:
+                        print(f"Removing filesystem test file: {test_file}")
+                        os.remove(test_file)
+                        removed_count += 1
+                    except OSError as e:
+                        print(f"Warning: Could not remove {test_file}: {e}")
 
-    for ext in [".jpg", ".jpeg", ".png", ".bmp"]:
-        if backend_uploads_images.exists():
-            test_files = list(backend_uploads_images.glob(f"test_*{ext}")) + list(
-                backend_uploads_images.glob(f"ui_test_*{ext}")
-            )
-            for test_file in test_files:
-                try:
-                    os.remove(test_file)
-                    removed_count += 1
-                except OSError:
-                    pass
+            # Clean thumbnails - match all test patterns
+            if thumbnails_dir.exists():
+                test_thumbnail_patterns = [
+                    f"thumb_test_*{ext}",
+                    f"thumb_ui_test_*{ext}",
+                    f"thumb_concurrent_*{ext}",
+                    f"thumb_persistence_test_*{ext}",
+                    f"thumb_test_workflow_*{ext}",
+                ]
+                test_thumbnails = []
+                for pattern in test_thumbnail_patterns:
+                    test_thumbnails.extend(list(thumbnails_dir.glob(pattern)))
 
-        if backend_uploads_thumbnails.exists():
-            test_thumbnails = list(
-                backend_uploads_thumbnails.glob(f"thumb_test_*{ext}")
-            ) + list(backend_uploads_thumbnails.glob(f"thumb_ui_test_*{ext}"))
-            for test_file in test_thumbnails:
-                try:
-                    os.remove(test_file)
-                    removed_count += 1
-                except OSError:
-                    pass
+                for test_file in test_thumbnails:
+                    try:
+                        print(f"Removing filesystem test thumbnail: {test_file}")
+                        os.remove(test_file)
+                        removed_count += 1
+                    except OSError as e:
+                        print(f"Warning: Could not remove {test_file}: {e}")
 
     return removed_count
 
