@@ -1372,6 +1372,42 @@ function startDrawing(e) {
     if (currentTool === 'select') {
         // Handle annotation selection
         console.log('Select tool clicked at:', x, y);
+
+        // FIRST: Check all polygons for point hits (before checking which annotation was clicked)
+        // This ensures we can grab polygon points even if they're on polygons underneath other annotations
+        // Check in reverse order (topmost first) to match annotation selection behavior
+        const currentImageId = images[currentImageIndex]?.id;
+        if (currentImageId) {
+            const imageAnnotations = annotations.filter(ann => ann.image_id === currentImageId);
+            // Check in reverse order (topmost first)
+            for (let i = imageAnnotations.length - 1; i >= 0; i--) {
+                const annotation = imageAnnotations[i];
+                if (annotation.tool === 'polygon') {
+                    const polygonPointIndex = getPolygonPointAtPoint(x, y, annotation);
+                    if (polygonPointIndex !== null) {
+                        // Select the annotation if not already selected
+                        const isAlreadySelected = selectedAnnotations.some(sel => sel.id === annotation.id);
+                        if (!isAlreadySelected) {
+                            selectedAnnotations = [annotation];
+                            updateSelectionActions();
+                        }
+                        isDraggingPolygonPoint = true;
+                        draggedPolygonIndex = polygonPointIndex;
+                        draggingPolygon = annotation;
+                        dragStartX = x;
+                        dragStartY = y;
+                        // Store original positions
+                        annotationOriginalPositions = [{
+                            annotation: annotation,
+                            originalCoords: JSON.parse(JSON.stringify(annotation.coordinates))
+                        }];
+                        drawExistingAnnotations();
+                        return;
+                    }
+                }
+            }
+        }
+
         const clickedAnnotation = getAnnotationAtPoint(x, y);
         console.log('Found annotation:', clickedAnnotation);
 
@@ -1379,8 +1415,8 @@ function startDrawing(e) {
             // Check if already selected
             const isAlreadySelected = selectedAnnotations.some(sel => sel.id === clickedAnnotation.id);
 
-            // Check if clicking on a resize handle (only for single selections)
-            if (isAlreadySelected && selectedAnnotations.length === 1) {
+            // SECOND: Check if clicking on a resize handle (only for selected bboxes)
+            if (isAlreadySelected && selectedAnnotations.length === 1 && clickedAnnotation.tool === 'bbox') {
                 // Check for bounding box resize handle
                 const handleType = getBboxHandleAtPoint(x, y, clickedAnnotation);
                 if (handleType) {
@@ -1390,22 +1426,6 @@ function startDrawing(e) {
                     dragStartX = x;
                     dragStartY = y;
                     // Store original coordinates for resize
-                    annotationOriginalPositions = [{
-                        annotation: clickedAnnotation,
-                        originalCoords: JSON.parse(JSON.stringify(clickedAnnotation.coordinates))
-                    }];
-                    return;
-                }
-
-                // Check for polygon point
-                const polygonPointIndex = getPolygonPointAtPoint(x, y, clickedAnnotation);
-                if (polygonPointIndex !== null) {
-                    isDraggingPolygonPoint = true;
-                    draggedPolygonIndex = polygonPointIndex;
-                    draggingPolygon = clickedAnnotation;
-                    dragStartX = x;
-                    dragStartY = y;
-                    // Store original positions
                     annotationOriginalPositions = [{
                         annotation: clickedAnnotation,
                         originalCoords: JSON.parse(JSON.stringify(clickedAnnotation.coordinates))
@@ -1761,19 +1781,21 @@ function drawExistingAnnotations() {
                 ctx.closePath();
                 ctx.stroke();
 
-                // Draw points (consistent with bbox handles)
-                const pointRadius = 5;
-                points.forEach(point => {
-                    const screenX = point.x * zoomLevel + panX;
-                    const screenY = point.y * zoomLevel + panY;
-                    ctx.fillStyle = '#007bff';
-                    ctx.strokeStyle = '#ffffff';
-                    ctx.lineWidth = 2;
-                    ctx.beginPath();
-                    ctx.arc(screenX, screenY, pointRadius, 0, 2 * Math.PI);
-                    ctx.fill();
-                    ctx.stroke();
-                });
+                // Draw points only when selected (consistent with bbox handles)
+                if (isSelected) {
+                    const pointRadius = 5;
+                    points.forEach(point => {
+                        const screenX = point.x * zoomLevel + panX;
+                        const screenY = point.y * zoomLevel + panY;
+                        ctx.fillStyle = '#007bff';
+                        ctx.strokeStyle = '#ffffff';
+                        ctx.lineWidth = 2;
+                        ctx.beginPath();
+                        ctx.arc(screenX, screenY, pointRadius, 0, 2 * Math.PI);
+                        ctx.fill();
+                        ctx.stroke();
+                    });
+                }
             }
         }
     });
