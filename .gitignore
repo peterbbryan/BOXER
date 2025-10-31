@@ -56,3 +56,7 @@ logs/
 
 # Uploads
 uploads/
+
+# YOLO model weights (managed by Ultralytics)
+*.pt
+yolov8*.pt

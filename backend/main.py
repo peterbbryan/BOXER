@@ -1064,6 +1064,11 @@ async def run_model(  # pylint: disable=too-many-locals
             for box in boxes:
                 # Get coordinates in xyxy format (absolute pixels)
                 x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
+                # Convert to Python floats to avoid JSON serialization issues
+                x1 = float(x1)
+                y1 = float(y1)
+                x2 = float(x2)
+                y2 = float(y2)
                 # Get class name
                 class_id = int(box.cls[0].cpu().numpy())
                 class_name = model.names[class_id]
