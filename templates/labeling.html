@@ -2466,9 +2466,11 @@ function runModel(modelName) {
     })
     .then(data => {
         console.log('Model results:', data);
-        showNotification(`Model detected ${data.detections?.length || 0} objects`, 'success');
-        // Reload annotations to show the new ones
-        loadImageAnnotations(currentImage.id);
+        showNotification(`Model detected ${data.detections?.length || 0} objects. Reloading...`, 'success');
+        // Reload page to refresh categories and annotations
+        setTimeout(() => {
+            location.reload();
+        }, 1000);
     })
     .catch(error => {
         console.error('Error running model:', error);

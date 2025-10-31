@@ -911,15 +911,48 @@ async def export_to_yolo(  # pylint: disable=too-many-locals
 
 
 def generate_random_color() -> str:
-    """Generate a random hex color code.
+    """Generate a random hex color code with high saturation and brightness.
 
     Returns:
         A random hex color code (e.g., '#FF5733').
     """
-    # Generate random RGB values
-    r = random.randint(0, 255)
-    g = random.randint(0, 255)
-    b = random.randint(0, 255)
+    # Generate colors with high saturation and brightness for better visibility
+    # Use HSL-like approach to ensure vibrant colors
+    hue = random.random()  # 0.0 to 1.0
+
+    # Convert HSL to RGB for better color distribution
+    # Using golden ratio to ensure colors are well-distributed
+    h = int(hue * 360)
+    s = random.randint(60, 100)  # High saturation
+    l = random.randint(40, 60)  # Medium-light brightness
+
+    # Simple HSL to RGB conversion
+    c = (1 - abs(2 * l / 100 - 1)) * s / 100
+    x = c * (1 - abs((h / 60) % 2 - 1))
+    m = l / 100 - c / 2
+
+    if h < 60:
+        r, g, b = c, x, 0
+    elif h < 120:
+        r, g, b = x, c, 0
+    elif h < 180:
+        r, g, b = 0, c, x
+    elif h < 240:
+        r, g, b = 0, x, c
+    elif h < 300:
+        r, g, b = x, 0, c
+    else:
+        r, g, b = c, 0, x
+
+    r = int((r + m) * 255)
+    g = int((g + m) * 255)
+    b = int((b + m) * 255)
+
+    # Ensure values are in valid range
+    r = max(0, min(255, r))
+    g = max(0, min(255, g))
+    b = max(0, min(255, b))
+
     return f"#{r:02X}{g:02X}{b:02X}"
 
 
