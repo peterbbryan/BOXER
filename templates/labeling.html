@@ -352,6 +352,89 @@ function clampToImageBounds(x, y) {
     };
 }
 
+// Helper function to clamp annotation to image bounds while preserving shape
+function clampAnnotationToImage(annotation) {
+    let coords = annotation.coordinates;
+
+    if (annotation.tool === 'bbox') {
+        // Get bbox bounds
+        const minX = Math.min(coords.startX, coords.endX);
+        const maxX = Math.max(coords.startX, coords.endX);
+        const minY = Math.min(coords.startY, coords.endY);
+        const maxY = Math.max(coords.startY, coords.endY);
+
+        const bboxWidth = maxX - minX;
+        const bboxHeight = maxY - minY;
+
+        // Check if bbox is entirely outside image bounds
+        if (minX >= imageWidth || maxX < 0 || minY >= imageHeight || maxY < 0) {
+            // Move annotation to center of image
+            return {
+                startX: (imageWidth - bboxWidth) / 2,
+                startY: (imageHeight - bboxHeight) / 2,
+                endX: (imageWidth - bboxWidth) / 2 + bboxWidth,
+                endY: (imageHeight - bboxHeight) / 2 + bboxHeight
+            };
+        }
+
+        // If partially outside, clamp the corners
+        const clampedStart = clampToImageBounds(coords.startX, coords.startY);
+        const clampedEnd = clampToImageBounds(coords.endX, coords.endY);
+        return {
+            startX: clampedStart.x,
+            startY: clampedStart.y,
+            endX: clampedEnd.x,
+            endY: clampedEnd.y
+        };
+
+    } else if (annotation.tool === 'point') {
+        // For points, just clamp the position
+        const clamped = clampToImageBounds(coords.startX, coords.startY);
+        return {
+            startX: clamped.x,
+            startY: clamped.y,
+            endX: clamped.x,
+            endY: clamped.y
+        };
+
+    } else if (annotation.tool === 'polygon') {
+        // Get polygon bounds
+        const xs = coords.points.map(p => p.x);
+        const ys = coords.points.map(p => p.y);
+        const minX = Math.min(...xs);
+        const maxX = Math.max(...xs);
+        const minY = Math.min(...ys);
+        const maxY = Math.max(...ys);
+
+        const polyWidth = maxX - minX;
+        const polyHeight = maxY - minY;
+
+        // Check if polygon is entirely outside image bounds
+        if (minX >= imageWidth || maxX < 0 || minY >= imageHeight || maxY < 0) {
+            // Move polygon to center of image, preserving relative positions
+            const offsetX = (imageWidth - polyWidth) / 2 - minX;
+            const offsetY = (imageHeight - polyHeight) / 2 - minY;
+            return {
+                points: coords.points.map(point => ({
+                    x: point.x + offsetX,
+                    y: point.y + offsetY
+                }))
+            };
+        }
+
+        // If partially outside, clamp each point
+        return {
+            points: coords.points.map(point => {
+                const clamped = clampToImageBounds(point.x, point.y);
+                return { x: clamped.x, y: clamped.y };
+            })
+        };
+    }
+
+    // Fallback: return original coordinates
+    return coords;
+}
+
 const images = {{ images | tojson }};
 const labelCategories = {{ label_categories | tojson }};
 
@@ -1987,33 +2070,11 @@ function pasteAnnotations() {
         const newAnnotations = annotationsToPaste.map(annotation => {
             const newId = Date.now() + Math.random(); // Generate unique ID
 
-            // Clamp coordinates to current image bounds
-            let clampedCoords = annotation.coordinates;
-            if (annotation.tool === 'bbox') {
-                const clampedStart = clampToImageBounds(annotation.coordinates.startX, annotation.coordinates.startY);
-                const clampedEnd = clampToImageBounds(annotation.coordinates.endX, annotation.coordinates.endY);
-                clampedCoords = {
-                    startX: clampedStart.x,
-                    startY: clampedStart.y,
-                    endX: clampedEnd.x,
-                    endY: clampedEnd.y
-                };
-            } else if (annotation.tool === 'point') {
-                const clamped = clampToImageBounds(annotation.coordinates.startX, annotation.coordinates.startY);
-                clampedCoords = {
-                    startX: clamped.x,
-                    startY: clamped.y,
-                    endX: clamped.x,
-                    endY: clamped.y
-                };
-            } else if (annotation.tool === 'polygon') {
-                clampedCoords = {
-                    points: annotation.coordinates.points.map(point => {
-                        const clamped = clampToImageBounds(point.x, point.y);
-                        return { x: clamped.x, y: clamped.y };
-                    })
-                };
-            }
+            // Clamp coordinates to current image bounds, preserving shape
+            const clampedCoords = clampAnnotationToImage({
+                tool: annotation.tool,
+                coordinates: annotation.coordinates
+            });
 
             return {
                 id: newId,
