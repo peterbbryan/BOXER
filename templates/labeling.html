@@ -1761,21 +1761,18 @@ function drawExistingAnnotations() {
                 ctx.closePath();
                 ctx.stroke();
 
-                // Draw points (larger when selected)
-                const pointSize = isSelected ? 6 : 5;
+                // Draw points (consistent with bbox handles)
+                const pointRadius = 5;
                 points.forEach(point => {
                     const screenX = point.x * zoomLevel + panX;
                     const screenY = point.y * zoomLevel + panY;
+                    ctx.fillStyle = '#007bff';
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = 2;
                     ctx.beginPath();
-                    ctx.arc(screenX, screenY, pointSize, 0, 2 * Math.PI);
+                    ctx.arc(screenX, screenY, pointRadius, 0, 2 * Math.PI);
                     ctx.fill();
-
-                    // Draw white outline when selected
-                    if (isSelected) {
-                        ctx.strokeStyle = '#ffffff';
-                        ctx.lineWidth = 2;
-                        ctx.stroke();
-                    }
+                    ctx.stroke();
                 });
             }
         }
@@ -1783,7 +1780,7 @@ function drawExistingAnnotations() {
 }
 
 function drawSelectionHandles(ctx, startX, startY, endX, endY) {
-    const handleSize = 6;
+    const handleRadius = 5;
     const handles = [
         { x: startX, y: startY }, // top-left
         { x: (startX + endX) / 2, y: startY }, // top-center
@@ -1795,13 +1792,15 @@ function drawSelectionHandles(ctx, startX, startY, endX, endY) {
         { x: startX, y: (startY + endY) / 2 } // left-center
     ];
 
-    ctx.fillStyle = '#ffffff';
-    ctx.strokeStyle = '#007bff';
+    ctx.fillStyle = '#007bff';
+    ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 2;
 
     handles.forEach(handle => {
-        ctx.fillRect(handle.x - handleSize/2, handle.y - handleSize/2, handleSize, handleSize);
-        ctx.strokeRect(handle.x - handleSize/2, handle.y - handleSize/2, handleSize, handleSize);
+        ctx.beginPath();
+        ctx.arc(handle.x, handle.y, handleRadius, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.stroke();
     });
 }
 

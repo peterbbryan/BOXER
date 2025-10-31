@@ -23,22 +23,45 @@ def cleanup_test_files():
     db = SessionLocal()
     try:
         # Remove test images from database first
-        test_images_query = db.query(Image).filter(
-            (Image.filename.like("test_%.jpg"))
-            | (Image.filename.like("ui_test_%.jpg"))
-            | (Image.original_filename.like("test_%.jpg"))
-            | (Image.original_filename.like("ui_test_%.jpg"))
-            | (Image.filename.like("test_%.png"))
-            | (Image.filename.like("ui_test_%.png"))
-            | (Image.original_filename.like("test_%.png"))
-            | (Image.original_filename.like("ui_test_%.png"))
-        )
+        # Match test patterns: test_*, ui_test_*, concurrent_*, persistence_test_*, test_workflow_*
+        test_patterns = [
+            "test_%",  # Matches test_*.jpg, test_workflow_*.jpg, etc.
+            "ui_test_%",
+            "concurrent_%",
+            "persistence_test_%",
+            "test_workflow_%",
+        ]
+
+        # Build filter conditions for filename and original_filename
+        filters = []
+        for pattern in test_patterns:
+            # Match all common image extensions
+            for ext in ["", ".jpg", ".jpeg", ".png", ".bmp"]:
+                filters.append(Image.filename.like(pattern + ext))
+                filters.append(Image.original_filename.like(pattern + ext))
+
+        # Also match exact test filenames
+        test_exact_names = ["test.jpg", "ui_test.jpg", "test.png", "ui_test.png"]
+        for name in test_exact_names:
+            filters.append(Image.filename == name)
+            filters.append(Image.original_filename == name)
+
+        from sqlalchemy import or_
+
+        test_images_query = db.query(Image).filter(or_(*filters))
 
         test_images = test_images_query.all()
+
+        print(f"Found {len(test_images)} test images to clean up")
+        for img in test_images:
+            print(f"  - {img.filename} (original: {img.original_filename})")
 
         # Delete annotations for these test images
         if test_images:
             image_ids = [img.id for img in test_images]
+            annotation_count = (
+                db.query(Annotation).filter(Annotation.image_id.in_(image_ids)).count()
+            )
             db.query(Annotation).filter(Annotation.image_id.in_(image_ids)).delete()
 
             # Delete the images from database
@@ -47,9 +70,16 @@ def cleanup_test_files():
 
         db.commit()
         removed_count += len(test_images)
+        if test_images:
+            print(
+                f"Deleted {len(test_images)} test images and {annotation_count} associated annotations"
+            )
     except Exception as e:
         db.rollback()
         print(f"Error cleaning test images from database: {e}")
+        import traceback
+
+        traceback.print_exc()
     finally:
         db.close()
 
