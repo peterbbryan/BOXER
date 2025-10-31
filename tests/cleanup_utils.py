@@ -151,12 +151,19 @@ def cleanup_test_categories():
                 (LabelCategory.name.like("Test Category%"))
                 | (LabelCategory.name == "Test")
                 | (LabelCategory.name == "test")
+                | (LabelCategory.name == "Class1")
+                | (LabelCategory.name == "Class2")
             )
             .all()
         )
 
         if not test_categories:
+            print("No test categories found to clean up")
             return 0
+
+        print(f"Found {len(test_categories)} test categories to clean up")
+        for cat in test_categories:
+            print(f"  - {cat.name} (ID: {cat.id}, project: {cat.project_id})")
 
         # Get category IDs
         category_ids = [cat.id for cat in test_categories]
@@ -172,6 +179,7 @@ def cleanup_test_categories():
         )
 
         db.commit()
+        print(f"Deleted {deleted} test categories")
         return deleted
     finally:
         db.close()
