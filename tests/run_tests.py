@@ -17,11 +17,32 @@ os.chdir(project_root)
 def cleanup_test_artifacts():
     """Clean up test artifacts after running tests"""
     try:
+        import sys
+
+        # Remove test subdirectories from sys.path that were added by unittest discovery
+        # They can cause import conflicts (like shadowing the tests module)
+        test_subdirs = [
+            str(Path(__file__).parent / subdir)
+            for subdir in ["unit", "integration", "performance", "e2e"]
+        ]
+        project_root_str = str(project_root.resolve())
+
+        # Filter out test subdirs and ensure project root is at the front
+        sys.path = [p for p in sys.path if p not in test_subdirs]
+
+        # Ensure project root is first in sys.path
+        if project_root_str in sys.path:
+            sys.path.remove(project_root_str)
+        sys.path.insert(0, project_root_str)
+
         from tests.cleanup_utils import cleanup_all
 
         cleanup_all()
     except Exception as e:
         print(f"⚠️  Warning: Cleanup failed: {e}")
+        import traceback
+
+        traceback.print_exc()
 
 
 def run_unit_tests():
