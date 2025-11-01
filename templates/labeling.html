@@ -52,12 +52,26 @@
                     </button>
                 </div>
 
+                <!-- Main operations moved to top bar -->
+                <div class="flex items-center space-x-2">
+                    <div class="w-px h-6 bg-gray-600"></div>
+                    <button id="export-yolo" class="px-3 py-1 rounded text-sm font-medium text-green-400 hover:bg-green-900 hover:text-green-300" title="Export annotations to YOLO format">
+                        <i class="fas fa-download mr-1"></i>Export YOLO
+                    </button>
+                    <button id="import-yolo-classes" class="px-3 py-1 rounded text-sm font-medium text-blue-400 hover:bg-blue-900 hover:text-blue-300" title="Import YOLO classes from classes.txt">
+                        <i class="fas fa-upload mr-1"></i>Import Classes
+                    </button>
+                    <button id="run-model-btn" class="px-3 py-1 rounded text-sm font-medium text-purple-400 hover:bg-purple-900 hover:text-purple-300" title="Run pretrained YOLO model to auto-annotate">
+                        <i class="fas fa-brain mr-1"></i>Run AI Model
+                    </button>
+                    <button id="advanced-btn" class="px-3 py-1 rounded text-sm font-medium text-yellow-400 hover:bg-yellow-900 hover:text-yellow-300" title="Advanced operations">
+                        <i class="fas fa-cog mr-1"></i>Advanced
+                    </button>
+                </div>
+
                 <div class="text-sm text-gray-400">
                     <span id="current-image">1</span> of <span id="total-images">{{ images|length }}</span>
                 </div>
-                <button id="advanced-btn" class="px-3 py-1 rounded text-sm font-medium text-yellow-400 hover:bg-yellow-900 hover:text-yellow-300" title="Advanced operations">
-                    <i class="fas fa-cog mr-1"></i>Advanced
-                </button>
             </div>
         </div>
     </div>
@@ -227,20 +241,6 @@
                         <div class="w-px h-6 bg-gray-600"></div>
                         <button id="pan-tool" class="tool-btn px-3 py-1 rounded text-sm font-medium text-gray-300 hover:bg-gray-700" title="Pan tool (Hold and drag to pan)">
                             <i class="fas fa-hand-paper mr-1"></i>Pan
-                        </button>
-                        <button id="clear-tool" class="tool-btn px-3 py-1 rounded text-sm font-medium text-red-400 hover:bg-red-900 hover:text-red-300">
-                            <i class="fas fa-trash mr-1"></i>Clear All
-                        </button>
-                        <div class="w-px h-6 bg-gray-600"></div>
-                        <button id="export-yolo" class="tool-btn px-3 py-1 rounded text-sm font-medium text-green-400 hover:bg-green-900 hover:text-green-300" title="Export annotations to YOLO format">
-                            <i class="fas fa-download mr-1"></i>Export YOLO
-                        </button>
-                        <button id="import-yolo-classes" class="tool-btn px-3 py-1 rounded text-sm font-medium text-blue-400 hover:bg-blue-900 hover:text-blue-300" title="Import YOLO classes from classes.txt">
-                            <i class="fas fa-upload mr-1"></i>Import Classes
-                        </button>
-                        <div class="w-px h-6 bg-gray-600"></div>
-                        <button id="run-model-btn" class="tool-btn px-3 py-1 rounded text-sm font-medium text-purple-400 hover:bg-purple-900 hover:text-purple-300" title="Run pretrained YOLO model to auto-annotate">
-                            <i class="fas fa-brain mr-1"></i>Run AI Model
                         </button>
                     </div>
                     <div class="flex items-center space-x-2">
