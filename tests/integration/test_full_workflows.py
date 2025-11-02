@@ -9,15 +9,6 @@ from fastapi.testclient import TestClient
 from PIL import Image
 
 from backend.main import app
-from backend.database import (
-    get_db,
-    init_database,
-    Project,
-    Dataset,
-    Image as ImageModel,
-    Annotation,
-    LabelCategory,
-)
 
 
 class TestFullWorkflows(unittest.TestCase):

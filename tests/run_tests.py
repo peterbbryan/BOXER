@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Test runner for BOXER test suite
+Test runner for VibeCortex test suite
 """
 
 import unittest
@@ -13,12 +13,20 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 os.chdir(project_root)
 
+# Ensure project root is in sys.path BEFORE any test discovery
+# This is critical because unittest.discover() imports modules immediately
+project_root_str = str(project_root.resolve())
+if project_root_str not in sys.path:
+    sys.path.insert(0, project_root_str)
+elif sys.path[0] != project_root_str:
+    # If it's already in sys.path but not at the front, move it to front
+    sys.path.remove(project_root_str)
+    sys.path.insert(0, project_root_str)
+
 
 def cleanup_test_artifacts():
     """Clean up test artifacts after running tests"""
     try:
-        import sys
-
         # Remove test subdirectories from sys.path that were added by unittest discovery
         # They can cause import conflicts (like shadowing the tests module)
         test_subdirs = [
@@ -120,7 +128,7 @@ def run_e2e_tests():
 
 def main():
     """Main test runner"""
-    print("BOXER Test Suite")
+    print("VibeCortex Test Suite")
     print("====================")
     print(f"Python version: {sys.version}")
     print(f"Test directory: {os.path.dirname(__file__)}")

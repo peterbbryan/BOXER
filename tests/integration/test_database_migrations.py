@@ -5,14 +5,11 @@ Database migration and schema tests
 import unittest
 import tempfile
 import os
-from unittest.mock import patch
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
 from backend.database import (
     Base,
-    get_db,
-    init_database,
     Project,
     Dataset,
     Image,

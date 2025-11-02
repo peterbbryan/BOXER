@@ -3,8 +3,6 @@ Unit tests for zoom and pan functionality
 """
 
 import unittest
-import math
-from unittest.mock import Mock, patch
 
 
 class TestZoomPanFunctions(unittest.TestCase):

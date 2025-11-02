@@ -28,12 +28,16 @@ if __name__ == "__main__":
     print(f"📚 API Docs: http://localhost:{port}/api/docs")
     print("=" * 50)
 
+    # Configure for large file uploads (SAR data can be 500MB+)
     uvicorn.run(
         "main:app",
         host="0.0.0.0",
         port=port,
         reload=True,
         log_level="info",
+        limit_concurrency=1000,
+        limit_max_requests=1000,
+        timeout_keep_alive=120,
         reload_dirs=[
             str(backend_dir),
             str(project_root / "templates"),

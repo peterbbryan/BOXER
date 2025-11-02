@@ -3,8 +3,6 @@ Unit tests for database models
 """
 
 import unittest
-from unittest.mock import Mock, patch
-from datetime import datetime
 
 from backend.database import Project, Dataset, Image, Annotation, LabelCategory
 

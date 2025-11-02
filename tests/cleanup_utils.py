@@ -3,13 +3,16 @@ Test cleanup utilities for removing test artifacts
 """
 
 import os
-import glob
 from pathlib import Path
 
 
 def cleanup_test_files():
     """Remove all test files created during testing and their database records"""
-    from backend.database import SessionLocal, Image, Annotation
+    try:
+        from backend.database import SessionLocal, Image, Annotation
+    except ModuleNotFoundError as e:
+        print(f"⚠️  Warning: Cannot import database modules for cleanup: {e}")
+        return 0
 
     project_root = Path(__file__).parent.parent
 
@@ -23,24 +26,34 @@ def cleanup_test_files():
     db = SessionLocal()
     try:
         # Remove test images from database first
-        # Match test patterns: test_*, ui_test_*, concurrent_*, persistence_test_*, test_workflow_*
+        # IMPORTANT: Only match files that START with these test prefixes and have image extensions
+        # This prevents accidentally matching user files that might contain "test" in the name
         test_patterns = [
-            "test_%",  # Matches test_*.jpg, test_workflow_*.jpg, etc.
-            "ui_test_%",
-            "concurrent_%",
-            "persistence_test_%",
-            "test_workflow_%",
+            "test_",  # Must start with "test_"
+            "ui_test_",  # Must start with "ui_test_"
+            "concurrent_",  # Must start with "concurrent_"
+            "persistence_test_",  # Must start with "persistence_test_"
+            "test_workflow_",  # Must start with "test_workflow_"
         ]
 
         # Build filter conditions for filename and original_filename
+        # CRITICAL: Only match if filename STARTS with test pattern AND has an extension
+        # This prevents matching partial names or files without extensions
         filters = []
-        for pattern in test_patterns:
-            # Match all common image extensions
-            for ext in ["", ".jpg", ".jpeg", ".png", ".bmp"]:
-                filters.append(Image.filename.like(pattern + ext))
-                filters.append(Image.original_filename.like(pattern + ext))
+        image_extensions = [".jpg", ".jpeg", ".png", ".bmp"]
 
-        # Also match exact test filenames
+        for pattern in test_patterns:
+            # Match files that start with the pattern followed by any characters and then an extension
+            # Pattern: "test_%" matches anything starting with "test_"
+            # But we require it to have one of our extensions at the end
+            for ext in image_extensions:
+                # Match: test_something.jpg, test_123.jpg, etc.
+                # BUT also match test_something_abc123.jpg (the unique ID format)
+                pattern_with_ext = f"{pattern}%{ext}"
+                filters.append(Image.filename.like(pattern_with_ext))
+                filters.append(Image.original_filename.like(pattern_with_ext))
+
+        # Also match exact test filenames (without UUID suffix)
         test_exact_names = ["test.jpg", "ui_test.jpg", "test.png", "ui_test.png"]
         for name in test_exact_names:
             filters.append(Image.filename == name)
@@ -48,13 +61,37 @@ def cleanup_test_files():
 
         from sqlalchemy import or_
 
-        test_images_query = db.query(Image).filter(or_(*filters))
+        # Safety check: If no filters defined, don't delete anything
+        if not filters:
+            print("⚠️  WARNING: No test image filters defined - skipping cleanup")
+            test_images = []
+        else:
+            test_images_query = db.query(Image).filter(or_(*filters))
+            test_images = test_images_query.all()
 
-        test_images = test_images_query.all()
+        # Safety check: Show all images before deletion for verification
+        all_images = db.query(Image).all()
+        if all_images:
+            print(f"\n📊 Current images in database ({len(all_images)} total):")
+            for img in all_images:
+                is_test = img in test_images
+                status = (
+                    "🗑️  TEST (will be deleted)"
+                    if is_test
+                    else "✅ PRODUCTION (preserved)"
+                )
+                print(
+                    f"  {status}: {img.filename} (original: {img.original_filename}, ID: {img.id})"
+                )
 
-        print(f"Found {len(test_images)} test images to clean up")
-        for img in test_images:
-            print(f"  - {img.filename} (original: {img.original_filename})")
+        print(f"\n🗑️  Found {len(test_images)} test images to clean up")
+        if test_images:
+            for img in test_images:
+                print(
+                    f"  - {img.filename} (original: {img.original_filename}, ID: {img.id})"
+                )
+        else:
+            print("  ✅ No test images found - all images are production")
 
         # Delete annotations for these test images
         if test_images:
@@ -72,8 +109,19 @@ def cleanup_test_files():
         removed_count += len(test_images)
         if test_images:
             print(
-                f"Deleted {len(test_images)} test images and {annotation_count} associated annotations"
+                f"\n✅ Deleted {len(test_images)} test images and {annotation_count} associated annotations"
             )
+
+        # Show remaining production images
+        remaining_images = db.query(Image).all()
+        if remaining_images:
+            print(f"\n✅ Preserved {len(remaining_images)} production image(s):")
+            for img in remaining_images:
+                print(
+                    f"  - {img.filename} (original: {img.original_filename}, ID: {img.id})"
+                )
+        else:
+            print("\nℹ️  No images remain in database")
     except Exception as e:
         db.rollback()
         print(f"Error cleaning test images from database: {e}")
@@ -153,7 +201,11 @@ def cleanup_test_categories():
     Production categories with other names (e.g., "person", "car", custom names)
     are NOT affected by this cleanup.
     """
-    from backend.database import SessionLocal, LabelCategory, Annotation
+    try:
+        from backend.database import SessionLocal, LabelCategory, Annotation
+    except ModuleNotFoundError as e:
+        print(f"⚠️  Warning: Cannot import database modules for cleanup: {e}")
+        return 0
 
     db = SessionLocal()
     try:
@@ -249,13 +301,17 @@ def cleanup_all():
     """Clean up all test artifacts"""
     print("🧹 Cleaning up test artifacts...")
 
-    files_removed = cleanup_test_files()
-    categories_removed = cleanup_test_categories()
+    try:
+        files_removed = cleanup_test_files()
+        categories_removed = cleanup_test_categories()
 
-    print(f"✅ Removed {files_removed} test files")
-    print(f"✅ Removed {categories_removed} test categories")
+        print(f"✅ Removed {files_removed} test files")
+        print(f"✅ Removed {categories_removed} test categories")
 
-    return files_removed + categories_removed
+        return files_removed + categories_removed
+    except Exception as e:
+        print(f"⚠️  Warning: Cleanup encountered errors: {e}")
+        return 0
 
 
 if __name__ == "__main__":

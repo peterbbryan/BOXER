@@ -3,7 +3,6 @@ Unit tests for annotation coordinate transformations
 """
 
 import unittest
-import math
 
 
 class TestAnnotationCoordinates(unittest.TestCase):

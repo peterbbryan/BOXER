@@ -3,12 +3,10 @@ Unit tests for image utilities
 """
 
 import unittest
-from unittest.mock import Mock, patch, mock_open
+from unittest.mock import patch, mock_open
 import tempfile
 import os
-from pathlib import Path
 from PIL import Image
-import hashlib
 
 from backend.image_utils import (
     generate_unique_filename,

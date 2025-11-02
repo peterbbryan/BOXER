@@ -5,9 +5,7 @@ Integration tests for image loading and positioning
 import unittest
 import os
 import tempfile
-from unittest.mock import Mock, patch, MagicMock
 from PIL import Image
-import json
 
 
 class TestImageLoading(unittest.TestCase):

@@ -58,6 +58,9 @@
                     <button id="export-yolo" class="tool-btn px-3 py-1 rounded text-sm font-medium text-green-400 hover:bg-green-900 hover:text-green-300" title="Export annotations to YOLO format">
                         <i class="fas fa-download mr-1"></i>Export YOLO
                     </button>
+                    <button id="import-yolo" class="tool-btn px-3 py-1 rounded text-sm font-medium text-blue-400 hover:bg-blue-900 hover:text-blue-300" title="Import YOLO dataset from ZIP file">
+                        <i class="fas fa-upload mr-1"></i>Import YOLO
+                    </button>
                     <button id="import-yolo-classes" class="tool-btn px-3 py-1 rounded text-sm font-medium text-blue-400 hover:bg-blue-900 hover:text-blue-300" title="Import YOLO classes from classes.txt">
                         <i class="fas fa-upload mr-1"></i>Import Classes
                     </button>
@@ -181,12 +184,13 @@
                 <h3 class="text-lg font-semibold text-white mb-3">Upload Images</h3>
                 <div class="space-y-3">
                     <div class="border-2 border-dashed border-gray-600 rounded-lg p-4 text-center hover:border-blue-400 transition-colors">
-                        <input type="file" id="image-upload" multiple accept="image/*,.tiff,.tif" class="hidden">
+                        <input type="file" id="image-upload" multiple accept="image/*,.tiff,.tif,.r0,.sicd,.nitf,.ntf,.nff" class="hidden">
                         <input type="file" id="yolo-classes-upload" accept=".txt" class="hidden">
+                        <input type="file" id="yolo-import-upload" accept=".zip" class="hidden">
                         <label for="image-upload" class="cursor-pointer">
                             <i class="fas fa-cloud-upload-alt text-3xl text-gray-400 mb-2"></i>
                             <p class="text-sm text-gray-300">Click to upload images</p>
-                            <p class="text-xs text-gray-500">PNG, JPG, JPEG, GIF, TIFF supported</p>
+                            <p class="text-xs text-gray-500">PNG, JPG, JPEG, GIF, TIFF, R0, SICD supported</p>
                         </label>
                     </div>
 
@@ -227,20 +231,20 @@
                 <div class="flex items-center space-x-4">
                     <div class="flex items-center space-x-2">
                         <button id="select-tool" class="tool-btn active px-3 py-1 rounded text-sm font-medium bg-blue-600 text-white">
-                            <i class="fas fa-mouse-pointer mr-1"></i>Select
+                            <i class="fas fa-mouse-pointer mr-1"></i>Select <span class="text-xs opacity-75 ml-1">(1)</span>
                         </button>
                         <button id="bbox-tool" class="tool-btn px-3 py-1 rounded text-sm font-medium text-gray-300 hover:bg-gray-700">
-                            <i class="fas fa-square mr-1"></i>Bounding Box
+                            <i class="fas fa-square mr-1"></i>Bounding Box <span class="text-xs opacity-75 ml-1">(2)</span>
                         </button>
                         <button id="polygon-tool" class="tool-btn px-3 py-1 rounded text-sm font-medium text-gray-300 hover:bg-gray-700">
-                            <i class="fas fa-draw-polygon mr-1"></i>Polygon
+                            <i class="fas fa-draw-polygon mr-1"></i>Polygon <span class="text-xs opacity-75 ml-1">(3)</span>
                         </button>
                         <button id="point-tool" class="tool-btn px-3 py-1 rounded text-sm font-medium text-gray-300 hover:bg-gray-700">
-                            <i class="fas fa-circle mr-1"></i>Point
+                            <i class="fas fa-circle mr-1"></i>Point <span class="text-xs opacity-75 ml-1">(4)</span>
                         </button>
                         <div class="w-px h-6 bg-gray-600"></div>
                         <button id="pan-tool" class="tool-btn px-3 py-1 rounded text-sm font-medium text-gray-300 hover:bg-gray-700" title="Pan tool (Hold and drag to pan)">
-                            <i class="fas fa-hand-paper mr-1"></i>Pan
+                            <i class="fas fa-hand-paper mr-1"></i>Pan <span class="text-xs opacity-75 ml-1">(5)</span>
                         </button>
                     </div>
                     <div class="flex items-center space-x-2">
@@ -266,14 +270,16 @@
 
             <!-- Image Canvas -->
             <div class="flex-1 relative overflow-hidden bg-gray-900">
-                <div id="canvas-container" class="absolute inset-0">
-                    <div id="image-container" class="relative">
+                <div id="canvas-container" class="absolute inset-0" style="will-change: scroll-position; transform: translateZ(0);">
+                    <div id="image-container" class="relative" style="will-change: transform;">
                         <img id="main-image"
                              src=""
                              alt="Image to label"
-                             class="hidden">
+                             class="hidden"
+                             style="image-rendering: auto;">
                         <canvas id="annotation-canvas"
-                                class="absolute inset-0 cursor-crosshair"></canvas>
+                                class="absolute inset-0 cursor-crosshair"
+                                style="pointer-events: auto;"></canvas>
                         <!-- No image placeholder -->
                         <div id="no-image-placeholder" class="flex flex-col items-center justify-center h-64 text-gray-500">
                             <i class="fas fa-image text-6xl mb-4"></i>
@@ -396,16 +402,18 @@ let resizingAnnotation = null; // The annotation being resized
 let isDraggingPolygonPoint = false; // Track if we're dragging a polygon point
 let draggedPolygonIndex = null; // Index of the polygon point being dragged
 let draggingPolygon = null; // The polygon annotation being modified
+let isDrawingSelectionBox = false; // Track if we're drawing a selection box
 
 // Zoom and pan variables
 let zoomLevel = 1;
+let currentImageId = null;
 let panX = 0;
 let panY = 0;
 let isPanning = false;
 let lastPanX = 0;
 let lastPanY = 0;
 
-// Image dimensions for bounds checking
+// Image dimensions
 let imageWidth = 0;
 let imageHeight = 0;
 
@@ -506,7 +514,21 @@ const labelCategories = {{ label_categories | tojson }};
 // Initialize the interface
 document.addEventListener('DOMContentLoaded', function() {
     if (images.length > 0) {
-        loadImage(0);
+        // Check if we should preserve the image index (e.g., after model run)
+        const preservedIndex = sessionStorage.getItem('preserveImageIndex');
+        if (preservedIndex !== null) {
+            const index = parseInt(preservedIndex, 10);
+            // Clear the stored index so it doesn't persist across other reloads
+            sessionStorage.removeItem('preserveImageIndex');
+            // Use preserved index if it's valid, otherwise default to 0
+            if (index >= 0 && index < images.length) {
+                loadImage(index);
+            } else {
+                loadImage(0);
+            }
+        } else {
+            loadImage(0);
+        }
     } else {
         showNoImagePlaceholder();
     }
@@ -526,6 +548,11 @@ function setupEventListeners() {
             // Handle export button separately
             if (this.id === 'export-yolo') {
                 exportToYOLO();
+                return;
+            }
+            // Handle import YOLO button separately
+            if (this.id === 'import-yolo') {
+                importYOLO();
                 return;
             }
             // Handle import classes button separately
@@ -612,6 +639,12 @@ function setupEventListeners() {
     const yoloClassesUpload = document.getElementById('yolo-classes-upload');
     yoloClassesUpload.addEventListener('change', handleYOLOClassesUpload);
 
+    // Add event listener for YOLO dataset import
+    const yoloImportUpload = document.getElementById('yolo-import-upload');
+    if (yoloImportUpload) {
+        yoloImportUpload.addEventListener('change', handleYOLOUpload);
+    }
+
     // Removed manual upload button; uploads start automatically on selection
 
     // Canvas events
@@ -666,6 +699,8 @@ function setupEventListeners() {
         }
     });
 
+    // Optimized mousemove with immediate transform update and debounced annotation redraw
+    let panTimeout = null;
     canvas.addEventListener('mousemove', function(e) {
         if (isPanning) {
             const deltaX = e.clientX - lastPanX;
@@ -674,7 +709,18 @@ function setupEventListeners() {
             panY += deltaY;
             lastPanX = e.clientX;
             lastPanY = e.clientY;
-            updateImageTransform();
+
+            // Update image transform immediately for smooth panning
+            updateImageTransformOnly();
+
+            // Debounce annotation redraw during continuous panning
+            if (panTimeout) {
+                clearTimeout(panTimeout);
+            }
+            panTimeout = setTimeout(() => {
+                requestRedraw();
+                panTimeout = null;
+            }, 16); // ~60fps
         }
     });
 
@@ -682,6 +728,12 @@ function setupEventListeners() {
         if (isPanning) {
             isPanning = false;
             canvas.style.cursor = 'crosshair';
+            // Force final redraw when panning stops
+            if (panTimeout) {
+                clearTimeout(panTimeout);
+                panTimeout = null;
+            }
+            requestRedraw();
         }
     });
 
@@ -689,6 +741,12 @@ function setupEventListeners() {
         if (isPanning) {
             isPanning = false;
             canvas.style.cursor = 'crosshair';
+            // Force final redraw when panning stops
+            if (panTimeout) {
+                clearTimeout(panTimeout);
+                panTimeout = null;
+            }
+            requestRedraw();
         }
     });
 
@@ -734,6 +792,33 @@ function setupEventListeners() {
 
     // Keyboard shortcuts
     document.addEventListener('keydown', function(e) {
+        // Check if user is typing in an input field - don't trigger shortcuts in that case
+        const isTyping = e.target.tagName === 'INPUT' ||
+                        e.target.tagName === 'TEXTAREA' ||
+                        e.target.isContentEditable ||
+                        (e.target.closest('input') !== null) ||
+                        (e.target.closest('textarea') !== null);
+
+        // Tool shortcuts (1-5) - only if not typing
+        if (!isTyping && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
+            if (e.key === '1') {
+                e.preventDefault();
+                document.getElementById('select-tool').click();
+            } else if (e.key === '2') {
+                e.preventDefault();
+                document.getElementById('bbox-tool').click();
+            } else if (e.key === '3') {
+                e.preventDefault();
+                document.getElementById('polygon-tool').click();
+            } else if (e.key === '4') {
+                e.preventDefault();
+                document.getElementById('point-tool').click();
+            } else if (e.key === '5') {
+                e.preventDefault();
+                document.getElementById('pan-tool').click();
+            }
+        }
+
         // Escape key to close current image
         if (e.key === 'Escape') {
             const mainImage = document.getElementById('main-image');
@@ -914,6 +999,7 @@ function loadImage(index) {
 
     currentImageIndex = index;
     const image = images[index];
+    currentImageId = image.id;
 
     document.getElementById('loading-overlay').classList.remove('hidden');
     document.getElementById('no-image-placeholder').classList.add('hidden');
@@ -942,6 +1028,13 @@ function loadImage(index) {
         // Store image dimensions for bounds checking
         imageWidth = images[index].width;
         imageHeight = images[index].height;
+
+        // Set GPU acceleration hints once when image loads
+        img.style.willChange = 'transform';
+
+        // Reset cached canvas dimensions
+        cachedCanvasWidth = 0;
+        cachedCanvasHeight = 0;
 
         setupCanvas();
 
@@ -1343,14 +1436,37 @@ function setupCanvas() {
         return;
     }
 
+    // Don't setup if image isn't loaded yet
+    if (!img.complete || img.naturalWidth === 0) {
+        return;
+    }
+
     // Set canvas size to match container
     const containerRect = canvasContainer.getBoundingClientRect();
     canvas.width = containerRect.width;
     canvas.height = containerRect.height;
+    cachedCanvasWidth = canvas.width;
+    cachedCanvasHeight = canvas.height;
 
     // Clear canvas
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Set image styles once (these don't change during zoom/pan)
+    img.style.maxWidth = 'none';
+    img.style.maxHeight = 'none';
+    img.style.objectFit = 'none';
+    img.style.left = '0px';
+    img.style.top = '0px';
+    img.style.position = 'absolute';
+    img.style.transformOrigin = '0 0';
+    img.style.width = `${img.naturalWidth}px`;
+    img.style.height = `${img.naturalHeight}px`;
+
+    // Enable hardware acceleration for smooth transforms
+    img.style.willChange = 'transform';
+    img.style.backfaceVisibility = 'hidden';
+    img.style.perspective = '1000px';
 
     // Update image transform
     updateImageTransform();
@@ -1366,14 +1482,45 @@ function startDrawing(e) {
     const ctx = canvas.getContext('2d');
     const img = document.getElementById('main-image');
     const rect = canvas.getBoundingClientRect();
-    const x = (e.clientX - rect.left - panX) / zoomLevel;
-    const y = (e.clientY - rect.top - panY) / zoomLevel;
+    // Convert screen coordinates to image coordinates
+    const x = ((e.clientX - rect.left - panX) / zoomLevel);
+    const y = ((e.clientY - rect.top - panY) / zoomLevel);
 
     if (currentTool === 'select') {
         // Handle annotation selection
         console.log('Select tool clicked at:', x, y);
 
-        // FIRST: Check all polygons for point hits (before checking which annotation was clicked)
+        // Calculate screen coordinates directly from the click event for more accurate hit detection
+        // This avoids precision loss from converting image coords back to screen coords
+        const screenClickX = e.clientX - rect.left;
+        const screenClickY = e.clientY - rect.top;
+
+        // FIRST: Check selected polygons for point hits (prioritize editing selected annotations)
+        // This ensures clicks on points of selected annotations are detected reliably
+        if (selectedAnnotations.length > 0) {
+            for (let i = 0; i < selectedAnnotations.length; i++) {
+                const annotation = selectedAnnotations[i];
+                if (annotation.tool === 'polygon') {
+                    const polygonPointIndex = getPolygonPointAtPointScreen(screenClickX, screenClickY, annotation);
+                    if (polygonPointIndex !== null) {
+                        isDraggingPolygonPoint = true;
+                        draggedPolygonIndex = polygonPointIndex;
+                        draggingPolygon = annotation;
+                        dragStartX = x;
+                        dragStartY = y;
+                        // Store original positions
+                        annotationOriginalPositions = [{
+                            annotation: annotation,
+                            originalCoords: JSON.parse(JSON.stringify(annotation.coordinates))
+                        }];
+                        drawExistingAnnotations();
+                        return;
+                    }
+                }
+            }
+        }
+
+        // SECOND: Check all polygons for point hits (before checking which annotation was clicked)
         // This ensures we can grab polygon points even if they're on polygons underneath other annotations
         // Check in reverse order (topmost first) to match annotation selection behavior
         const currentImageId = images[currentImageIndex]?.id;
@@ -1382,15 +1529,14 @@ function startDrawing(e) {
             // Check in reverse order (topmost first)
             for (let i = imageAnnotations.length - 1; i >= 0; i--) {
                 const annotation = imageAnnotations[i];
-                if (annotation.tool === 'polygon') {
-                    const polygonPointIndex = getPolygonPointAtPoint(x, y, annotation);
+                // Skip already selected annotations (already checked above)
+                const isAlreadySelected = selectedAnnotations.some(sel => sel.id === annotation.id);
+                if (!isAlreadySelected && annotation.tool === 'polygon') {
+                    const polygonPointIndex = getPolygonPointAtPointScreen(screenClickX, screenClickY, annotation);
                     if (polygonPointIndex !== null) {
                         // Select the annotation if not already selected
-                        const isAlreadySelected = selectedAnnotations.some(sel => sel.id === annotation.id);
-                        if (!isAlreadySelected) {
-                            selectedAnnotations = [annotation];
-                            updateSelectionActions();
-                        }
+                        selectedAnnotations = [annotation];
+                        updateSelectionActions();
                         isDraggingPolygonPoint = true;
                         draggedPolygonIndex = polygonPointIndex;
                         draggingPolygon = annotation;
@@ -1457,9 +1603,14 @@ function startDrawing(e) {
                 }
             }
         } else {
-            // Click on empty area - deselect all unless Ctrl is held
+            // Click on empty area - start selection box unless Ctrl is held
             if (!e.ctrlKey && !e.metaKey) {
                 deselectAllAnnotations();
+                // Start drawing selection box
+                isDrawingSelectionBox = true;
+                isDrawing = true;
+                startX = x;
+                startY = y;
             }
             updateSelectionActions();
         }
@@ -1516,8 +1667,9 @@ function draw(e) {
     const canvas = document.getElementById('annotation-canvas');
     const ctx = canvas.getContext('2d');
     const rect = canvas.getBoundingClientRect();
-    const currentX = (e.clientX - rect.left - panX) / zoomLevel;
-    const currentY = (e.clientY - rect.top - panY) / zoomLevel;
+    // Convert screen coordinates to image coordinates
+    const currentX = ((e.clientX - rect.left - panX) / zoomLevel);
+    const currentY = ((e.clientY - rect.top - panY) / zoomLevel);
 
     // Handle bounding box resizing
     if (isResizingBbox) {
@@ -1534,6 +1686,31 @@ function draw(e) {
     // Handle annotation dragging
     if (isDraggingAnnotations) {
         dragAnnotations(currentX, currentY);
+        return;
+    }
+
+    // Handle selection box drawing
+    if (isDrawingSelectionBox) {
+        // Clear canvas
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Draw existing annotations
+        drawExistingAnnotations();
+
+        // Draw selection box in screen coordinates
+        const screenStartX = startX * zoomLevel + panX;
+        const screenStartY = startY * zoomLevel + panY;
+        const screenCurrentX = currentX * zoomLevel + panX;
+        const screenCurrentY = currentY * zoomLevel + panY;
+
+        ctx.strokeStyle = '#007bff';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([5, 5]); // Dashed line for selection box
+        ctx.strokeRect(screenStartX, screenStartY, screenCurrentX - screenStartX, screenCurrentY - screenStartY);
+        ctx.setLineDash([]); // Reset line dash
+
+        // Update selection based on intersection
+        updateSelectionFromBox(startX, startY, currentX, currentY);
         return;
     }
 
@@ -1567,6 +1744,15 @@ function draw(e) {
 }
 
 function stopDrawing(e) {
+    // Handle selection box completion
+    if (isDrawingSelectionBox) {
+        isDrawingSelectionBox = false;
+        isDrawing = false;
+        drawExistingAnnotations();
+        updateSelectionActions();
+        return;
+    }
+
     // Handle bounding box resize completion
     if (isResizingBbox) {
         stopResizingBbox();
@@ -1589,8 +1775,8 @@ function stopDrawing(e) {
 
     isDrawing = false;
     const rect = e.target.getBoundingClientRect();
-    const endX = (e.clientX - rect.left - panX) / zoomLevel;
-    const endY = (e.clientY - rect.top - panY) / zoomLevel;
+    const endX = ((e.clientX - rect.left - panX) / zoomLevel);
+    const endY = ((e.clientY - rect.top - panY) / zoomLevel);
 
     // Clamp coordinates to image bounds
     const clampedStart = clampToImageBounds(startX, startY);
@@ -1715,17 +1901,74 @@ function completePolygon() {
 
 function drawExistingAnnotations() {
     const canvas = document.getElementById('annotation-canvas');
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', {
+        alpha: true,
+        desynchronized: true // Hint for better performance
+    });
 
-    // Clear the canvas first
+    // Clear the canvas first - use faster method
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Set up viewport culling bounds (in image coordinate space)
+    const viewportLeft = -panX / zoomLevel;
+    const viewportRight = (canvas.width - panX) / zoomLevel;
+    const viewportTop = -panY / zoomLevel;
+    const viewportBottom = (canvas.height - panY) / zoomLevel;
+
+    // Add padding to ensure off-screen annotations near the edge are rendered
+    const padding = 50 / zoomLevel;
 
     const currentImageId = images[currentImageIndex]?.id;
 
+    // Count stats for debugging
+    let totalAnnotations = 0;
+    let renderedAnnotations = 0;
+
     annotations.forEach(annotation => {
         if (annotation.image_id !== currentImageId) return;
+        totalAnnotations++;
 
         const isSelected = selectedAnnotations.some(sel => sel.id === annotation.id);
+
+        // Viewport culling: only draw if annotation intersects viewport
+        let shouldDraw = false;
+
+        if (annotation.tool === 'bbox') {
+            const { startX, startY, endX, endY } = annotation.coordinates;
+            const minX = Math.min(startX, endX);
+            const maxX = Math.max(startX, endX);
+            const minY = Math.min(startY, endY);
+            const maxY = Math.max(startY, endY);
+
+            // Check intersection with padded viewport
+            shouldDraw = !(maxX < viewportLeft - padding || minX > viewportRight + padding ||
+                          maxY < viewportTop - padding || minY > viewportBottom + padding);
+        } else if (annotation.tool === 'point') {
+            const { startX, startY } = annotation.coordinates;
+            shouldDraw = startX >= viewportLeft - padding && startX <= viewportRight + padding &&
+                        startY >= viewportTop - padding && startY <= viewportBottom + padding;
+        } else if (annotation.tool === 'polygon') {
+            const { points } = annotation.coordinates;
+            if (points && points.length > 2) {
+                // For polygons, check if any point is in viewport or bounds box intersects
+                const bounds = points.reduce((acc, pt) => ({
+                    minX: Math.min(acc.minX, pt.x),
+                    maxX: Math.max(acc.maxX, pt.x),
+                    minY: Math.min(acc.minY, pt.y),
+                    maxY: Math.max(acc.maxY, pt.y)
+                }), { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity });
+
+                shouldDraw = !(bounds.maxX < viewportLeft - padding || bounds.minX > viewportRight + padding ||
+                              bounds.maxY < viewportTop - padding || bounds.minY > viewportBottom + padding);
+            }
+        }
+
+        // Skip if annotation is outside viewport (unless selected - always show selected)
+        if (!shouldDraw && !isSelected) {
+            return;
+        }
+
+        renderedAnnotations++;
 
         // Draw annotation
         ctx.strokeStyle = getCategoryColor(annotation.label_category_id);
@@ -1799,6 +2042,11 @@ function drawExistingAnnotations() {
             }
         }
     });
+
+    // Log performance stats in debug mode (can be removed in production)
+    if (window.DEBUG_RENDER && totalAnnotations > 0) {
+        console.log(`Rendered ${renderedAnnotations}/${totalAnnotations} annotations (culled ${totalAnnotations - renderedAnnotations})`);
+    }
 }
 
 function drawSelectionHandles(ctx, startX, startY, endX, endY) {
@@ -1984,7 +2232,8 @@ async function uploadImages() {
                 successCount++;
             } else {
                 failCount++;
-                console.error(`Failed to upload ${file.name}`);
+                const errorData = await response.json().catch(() => ({detail: 'Unknown error'}));
+                console.error(`Failed to upload ${file.name}:`, errorData.detail || 'Unknown error');
             }
         } catch (error) {
             failCount++;
@@ -2194,12 +2443,114 @@ function isPointInAnnotation(x, y, annotation) {
     return false;
 }
 
+function updateSelectionFromBox(boxStartX, boxStartY, boxEndX, boxEndY) {
+    const currentImageId = images[currentImageIndex]?.id;
+    if (!currentImageId) return;
+
+    const imageAnnotations = annotations.filter(ann => ann.image_id === currentImageId);
+    const selectedBoxAnnotations = [];
+
+    // Normalize box coordinates
+    const boxMinX = Math.min(boxStartX, boxEndX);
+    const boxMaxX = Math.max(boxStartX, boxEndX);
+    const boxMinY = Math.min(boxStartY, boxEndY);
+    const boxMaxY = Math.max(boxStartY, boxEndY);
+
+    // Check each annotation for intersection with the selection box
+    for (const annotation of imageAnnotations) {
+        if (annotation.tool === 'bbox') {
+            const { startX, startY, endX, endY } = annotation.coordinates;
+            const minX = Math.min(startX, endX);
+            const maxX = Math.max(startX, endX);
+            const minY = Math.min(startY, endY);
+            const maxY = Math.max(startY, endY);
+
+            // Check if bounding boxes intersect
+            if (!(maxX < boxMinX || minX > boxMaxX || maxY < boxMinY || minY > boxMaxY)) {
+                selectedBoxAnnotations.push(annotation);
+            }
+        } else if (annotation.tool === 'point') {
+            const { startX, startY } = annotation.coordinates;
+            // Check if point is inside selection box
+            if (startX >= boxMinX && startX <= boxMaxX && startY >= boxMinY && startY <= boxMaxY) {
+                selectedBoxAnnotations.push(annotation);
+            }
+        } else if (annotation.tool === 'polygon') {
+            const { points } = annotation.coordinates;
+            if (!points || points.length < 3) continue;
+
+            // Check if any polygon point is inside the selection box, or if polygon intersects with box
+            let intersects = false;
+
+            // Check if any point is inside the selection box
+            for (const point of points) {
+                if (point.x >= boxMinX && point.x <= boxMaxX && point.y >= boxMinY && point.y <= boxMaxY) {
+                    intersects = true;
+                    break;
+                }
+            }
+
+            // Check if any edge of the polygon intersects with the selection box
+            if (!intersects) {
+                for (let i = 0; i < points.length; i++) {
+                    const p1 = points[i];
+                    const p2 = points[(i + 1) % points.length];
+
+                    // Check if edge intersects with any edge of the selection box
+                    if (lineIntersectsRect(p1.x, p1.y, p2.x, p2.y, boxMinX, boxMinY, boxMaxX, boxMaxY)) {
+                        intersects = true;
+                        break;
+                    }
+                }
+            }
+
+            if (intersects) {
+                selectedBoxAnnotations.push(annotation);
+            }
+        }
+    }
+
+    // Update selection
+    selectedAnnotations = selectedBoxAnnotations;
+    drawExistingAnnotations();
+}
+
+function lineIntersectsRect(x1, y1, x2, y2, rectMinX, rectMinY, rectMaxX, rectMaxY) {
+    // Check if line segment intersects with rectangle by checking if endpoints are inside
+    // or if line intersects with any of the rectangle edges
+    const corners = [
+        [rectMinX, rectMinY], [rectMaxX, rectMinY],
+        [rectMaxX, rectMaxY], [rectMinX, rectMaxY]
+    ];
+
+    // Check intersection with each edge of the rectangle
+    for (let i = 0; i < 4; i++) {
+        const corner1 = corners[i];
+        const corner2 = corners[(i + 1) % 4];
+        if (lineIntersectsLine(x1, y1, x2, y2, corner1[0], corner1[1], corner2[0], corner2[1])) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function lineIntersectsLine(x1, y1, x2, y2, x3, y3, x4, y4) {
+    const denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
+    if (denom === 0) return false; // Parallel lines
+
+    const t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / denom;
+    const u = -((x1 - x2) * (y1 - y3) - (y1 - y2) * (x1 - x3)) / denom;
+
+    return t >= 0 && t <= 1 && u >= 0 && u <= 1;
+}
+
 function getBboxHandleAtPoint(x, y, annotation) {
     if (annotation.tool !== 'bbox') return null;
 
     const { startX, startY, endX, endY } = annotation.coordinates;
 
-    // Convert to screen coordinates
+    // Convert annotation coordinates to screen coordinates
     const screenStartX = startX * zoomLevel + panX;
     const screenStartY = startY * zoomLevel + panY;
     const screenEndX = endX * zoomLevel + panX;
@@ -2237,32 +2588,54 @@ function getBboxHandleAtPoint(x, y, annotation) {
     return null;
 }
 
-function getPolygonPointAtPoint(x, y, annotation) {
+// New function that works directly in screen coordinates (more accurate)
+function getPolygonPointAtPointScreen(screenX, screenY, annotation) {
     if (annotation.tool !== 'polygon') return null;
 
     const { points } = annotation.coordinates;
     if (!points || points.length === 0) return null;
 
-    const pointHitRadius = 15; // pixels in screen space (increased for easier grabbing)
-    const screenX = x * zoomLevel + panX;
-    const screenY = y * zoomLevel + panY;
+    // Increased hit radius - side/corner points need larger hit area
+    // Scale hit radius based on zoom to maintain consistent feel
+    const baseHitRadius = 30; // pixels in screen space (increased for easier clicking)
+    // When zoomed out, we need an even larger hit area
+    const pointHitRadius = baseHitRadius * (zoomLevel < 1 ? 2.0 : (zoomLevel < 0.5 ? 2.5 : 1.0));
 
-    // Check each point
+    // Check each point, find the closest one within radius
+    let closestIndex = null;
+    let closestDistance = pointHitRadius + 1; // Start with value larger than radius
+
     for (let i = 0; i < points.length; i++) {
         const point = points[i];
+        // Convert point coordinates to screen coordinates
         const pointScreenX = point.x * zoomLevel + panX;
         const pointScreenY = point.y * zoomLevel + panY;
 
+        // Use squared distance to avoid sqrt calculation until we need it
         const dx = screenX - pointScreenX;
         const dy = screenY - pointScreenY;
-        const distance = Math.sqrt(dx * dx + dy * dy);
+        const distanceSq = dx * dx + dy * dy;
+        const pointHitRadiusSq = pointHitRadius * pointHitRadius;
 
-        if (distance <= pointHitRadius) {
-            return i; // Return index of the point
+        // Return the closest point within radius (prioritize closer points)
+        if (distanceSq <= pointHitRadiusSq) {
+            const distance = Math.sqrt(distanceSq);
+            if (distance < closestDistance) {
+                closestDistance = distance;
+                closestIndex = i;
+            }
         }
     }
 
-    return null;
+    return closestIndex;
+}
+
+// Legacy function for backwards compatibility (now just converts and calls screen version)
+function getPolygonPointAtPoint(x, y, annotation) {
+    // Convert image coordinates to screen coordinates
+    const screenX = x * zoomLevel + panX;
+    const screenY = y * zoomLevel + panY;
+    return getPolygonPointAtPointScreen(screenX, screenY, annotation);
 }
 
 function selectAnnotation(annotation) {
@@ -2295,6 +2668,8 @@ function selectAllAnnotations() {
     const currentImageId = images[currentImageIndex]?.id;
     selectedAnnotations = annotations.filter(ann => ann.image_id === currentImageId);
     drawExistingAnnotations();
+    updateSelectionActions();
+    showAnnotationContextMenu();
 }
 
 // Copy and paste functions
@@ -2789,6 +3164,8 @@ function runModel(modelName) {
     .then(data => {
         console.log('Model results:', data);
         showNotification(`Model detected ${data.detections?.length || 0} objects. Reloading...`, 'success');
+        // Store current image index before reloading
+        sessionStorage.setItem('preserveImageIndex', currentImageIndex.toString());
         // Reload page to refresh categories and annotations
         setTimeout(() => {
             location.reload();
@@ -3001,6 +3378,64 @@ function exportToYOLO() {
         });
 }
 
+function importYOLO() {
+    const fileInput = document.getElementById('yolo-import-upload');
+    fileInput.click();
+}
+
+function handleYOLOUpload(event) {
+    const fileInput = event.target;
+    const file = fileInput.files[0];
+    if (!file) return;
+
+    if (!file.name.endsWith('.zip')) {
+        showNotification('Please select a .zip file', 'error');
+        fileInput.value = '';
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', file);
+    // Get the project ID from the data attribute on the project name
+    const projectId = document.querySelector('[data-project-id]')?.getAttribute('data-project-id');
+    formData.append('project_id', projectId || {{ project.id }});
+
+    showNotification('Importing YOLO dataset... This may take a while.', 'info');
+
+    fetch('/api/import/yolo', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => {
+        if (response.ok) {
+            return response.json();
+        } else {
+            return response.json().then(data => {
+                throw new Error(data.detail || 'Error importing YOLO dataset');
+            });
+        }
+    })
+    .then(data => {
+        console.log('Import successful:', data);
+        const stats = data.statistics;
+        const message = `Successfully imported ${stats.images_imported} images, ${stats.annotations_imported} annotations, and ${stats.classes_imported} classes.`;
+        showNotification(message, 'success');
+        // Reset the file input
+        fileInput.value = '';
+        // Reload the page to show new images and annotations
+        setTimeout(() => {
+            console.log('Reloading page...');
+            location.reload();
+        }, 2000); // Delay to let user see the success message
+    })
+    .catch(error => {
+        console.error('Error importing YOLO dataset:', error);
+        showNotification('Error importing YOLO dataset: ' + error.message, 'error');
+        // Reset the file input even on error
+        fileInput.value = '';
+    });
+}
+
 function importYOLOClasses() {
     const fileInput = document.getElementById('yolo-classes-upload');
     fileInput.click();
@@ -3132,7 +3567,25 @@ function fitToScreen() {
     // Wait for image to be fully loaded
     if (!img.complete || img.naturalWidth === 0) {
         logDebug('fitToScreen', 'Image not fully loaded, waiting...');
-        img.onload = () => fitToScreen();
+        // Don't overwrite onload if we're being called from within an onload handler
+        // This prevents infinite loops and handler conflicts
+        if (!img.onload || img.onload.toString().includes('fitToScreen')) {
+            // Only set onload if there isn't already one, or if it's our own
+            const existingOnload = img.onload;
+            img.onload = function() {
+                if (existingOnload && typeof existingOnload === 'function' && existingOnload !== img.onload) {
+                    existingOnload.call(this);
+                }
+                fitToScreen();
+            };
+        }
+        return;
+    }
+
+    // If we're being called from within an onload handler, the image should be ready
+    // But double-check to avoid issues
+    if (img.naturalWidth === 0 || img.naturalHeight === 0) {
+        logDebug('fitToScreen', 'Image dimensions not available yet');
         return;
     }
 
@@ -3141,8 +3594,9 @@ function fitToScreen() {
     const containerWidth = containerRect.width;
     const containerHeight = containerRect.height;
 
-    const imgWidth = img.naturalWidth;
-    const imgHeight = img.naturalHeight;
+    // Use image dimensions for zoom calculation
+    const imgWidth = imageWidth || img.naturalWidth;
+    const imgHeight = imageHeight || img.naturalHeight;
 
     logDebug('fitToScreen', `Container dimensions: ${containerWidth}x${containerHeight}`);
     logDebug('fitToScreen', `Image dimensions: ${imgWidth}x${imgHeight}`);
@@ -3172,6 +3626,54 @@ function fitToScreen() {
     }
 }
 
+// Throttle rendering for better performance with large images
+let renderAnimationFrame = null;
+let needsRedraw = false;
+let lastRenderTime = 0;
+const MIN_RENDER_INTERVAL = 16; // ~60fps max
+
+function requestRedraw() {
+    needsRedraw = true;
+
+    if (renderAnimationFrame === null) {
+        renderAnimationFrame = requestAnimationFrame((timestamp) => {
+            const timeSinceLastRender = timestamp - lastRenderTime;
+
+            // Throttle to max 60fps to avoid overwhelming the GPU
+            if (timeSinceLastRender >= MIN_RENDER_INTERVAL) {
+                drawExistingAnnotations();
+                lastRenderTime = timestamp;
+                needsRedraw = false;
+            } else if (needsRedraw) {
+                // Schedule another frame if we still need to redraw
+                renderAnimationFrame = null;
+                requestRedraw();
+                return;
+            }
+
+            renderAnimationFrame = null;
+        });
+    }
+}
+
+// Cache canvas container dimensions to avoid repeated getBoundingClientRect calls
+let cachedCanvasWidth = 0;
+let cachedCanvasHeight = 0;
+
+function updateImageTransformOnly() {
+    const img = document.getElementById('main-image');
+    if (!img) return;
+
+    // Don't update transform if image isn't ready
+    if (!img.complete || img.naturalWidth === 0) {
+        return;
+    }
+
+    // Only update transform - lightweight operation
+    // Using will-change and transform for GPU acceleration
+    img.style.transform = `translate(${panX}px, ${panY}px) scale(${zoomLevel})`;
+}
+
 function updateImageTransform() {
     const img = document.getElementById('main-image');
     const canvas = document.getElementById('annotation-canvas');
@@ -3179,12 +3681,15 @@ function updateImageTransform() {
 
     if (!img) return;
 
+    // Don't update transform if image isn't ready
+    if (!img.complete || img.naturalWidth === 0) {
+        return;
+    }
+
     // Update canvas size to match container
     const containerRect = canvasContainer.getBoundingClientRect();
     canvas.width = containerRect.width;
     canvas.height = containerRect.height;
-
-    logDebug('updateImageTransform', `zoomLevel: ${zoomLevel}, panX: ${panX}, panY: ${panY}`);
 
     // Set image size and position using transforms
     // Ensure the image maintains its natural aspect ratio
@@ -3198,8 +3703,6 @@ function updateImageTransform() {
     img.style.position = 'absolute';
     img.style.transform = `translate(${panX}px, ${panY}px) scale(${zoomLevel})`;
     img.style.transformOrigin = '0 0';
-
-    logDebug('updateImageTransform', `Applied transform: ${img.style.transform}`);
 
     // Redraw annotations
     drawExistingAnnotations();

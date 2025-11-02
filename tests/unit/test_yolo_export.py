@@ -2,8 +2,6 @@
 Unit tests for YOLO export functionality
 """
 
-import io
-import zipfile
 from unittest import TestCase
 
 from backend.image_utils import convert_annotation_to_yolo
