@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Test runner for VibeCortex test suite
+Test runner for BOXER test suite
 """
 
 import unittest
@@ -128,7 +128,7 @@ def run_e2e_tests():
 
 def main():
     """Main test runner"""
-    print("VibeCortex Test Suite")
+    print("BOXER Test Suite")
     print("====================")
     print(f"Python version: {sys.version}")
     print(f"Test directory: {os.path.dirname(__file__)}")

@@ -145,22 +145,47 @@ class TestUIFunctionality(unittest.TestCase):
         self.assertIn("image-upload", content)
         self.assertIn("upload-images", content)
 
-        # Step 3: Create a test image
+        # Step 3: Ensure a dataset exists (create if needed)
+        # First, get or create a project
+        projects_response = self.client.get("/api/projects")
+        projects_data = projects_response.json()
+        if projects_data["projects"]:
+            project_id = projects_data["projects"][0]["id"]
+        else:
+            # Create a test project
+            create_project_response = self.client.post(
+                "/api/projects",
+                json={
+                    "name": "Test Project",
+                    "description": "Test",
+                    "is_public": False,
+                },
+            )
+            project_id = create_project_response.json()["project_id"]
+
+        # Create a dataset for this test
+        create_dataset_response = self.client.post(
+            "/api/datasets",
+            json={"name": "Test Dataset", "project_id": project_id},
+        )
+        dataset_id = create_dataset_response.json()["dataset_id"]
+
+        # Step 4: Create a test image
         test_image_path = os.path.join(self.temp_dir, "ui_test.jpg")
         img = Image.new("RGB", (400, 300), color="blue")
         img.save(test_image_path, "JPEG")
 
-        # Step 4: Upload the image
+        # Step 5: Upload the image
         with open(test_image_path, "rb") as f:
             files = {"file": ("ui_test.jpg", f, "image/jpeg")}
-            data = {"dataset_id": 5}
+            data = {"dataset_id": dataset_id}
             response = self.client.post("/api/images/upload", files=files, data=data)
 
         self.assertEqual(response.status_code, 200)
         upload_data = response.json()
         self.assertIn("image_id", upload_data)
 
-        # Step 5: Verify image appears in the UI
+        # Step 6: Verify image appears in the UI
         response = self.client.get("/")
         self.assertEqual(response.status_code, 200)
 

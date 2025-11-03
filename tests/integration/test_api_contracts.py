@@ -3,6 +3,7 @@ API contract tests to ensure API stability
 """
 
 import unittest
+import uuid
 from fastapi.testclient import TestClient
 
 from backend.main import app
@@ -212,9 +213,11 @@ class TestAPIContracts(unittest.TestCase):
         self.assertIn("projects", data)
 
         # Test label categories endpoint (POST only)
+        # Use unique name to avoid conflicts with other tests
+        unique_name = f"Consistency Test Category {uuid.uuid4().hex[:8]}"
         response = self.client.post(
             "/api/label-categories",
-            json={"name": "Test Category", "color": "#FF0000", "project_id": 1},
+            json={"name": unique_name, "color": "#FF0000", "project_id": 1},
         )
         self.assertEqual(response.status_code, 200)
         data = response.json()
