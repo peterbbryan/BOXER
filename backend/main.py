@@ -9,7 +9,7 @@ import shutil
 import tempfile
 import zipfile
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 import uvicorn
 from PIL import Image as PILImage
@@ -1050,8 +1050,322 @@ async def import_yolo_classes(
     }
 
 
+def _get_or_create_dataset(
+    db: Session, project_id: int, dataset_id: Optional[int]
+) -> Dataset:
+    """Get or create dataset for YOLO import.
+
+    Args:
+        db: Database session.
+        project_id: Project ID.
+        dataset_id: Optional dataset ID.
+
+    Returns:
+        Dataset object.
+
+    Raises:
+        HTTPException: If dataset not found.
+    """
+    if dataset_id:
+        dataset = db.query(Dataset).filter(Dataset.id == dataset_id).first()
+        if not dataset:
+            raise HTTPException(status_code=404, detail="Dataset not found")
+        return dataset
+
+    dataset = (
+        db.query(Dataset)
+        .filter(Dataset.name == "Default Dataset", Dataset.project_id == project_id)
+        .first()
+    )
+    if not dataset:
+        dataset = Dataset(
+            name="Default Dataset",
+            description="Default dataset",
+            project_id=project_id,
+        )
+        db.add(dataset)
+        db.commit()
+        db.refresh(dataset)
+    return dataset
+
+
+def _read_classes_from_zip(temp_dir: str) -> list:
+    """Read class names from classes.txt in ZIP extraction directory.
+
+    Args:
+        temp_dir: Temporary directory where ZIP was extracted.
+
+    Returns:
+        List of class names.
+
+    Raises:
+        HTTPException: If classes.txt not found or empty.
+    """
+    classes_file = os.path.join(temp_dir, "classes.txt")
+    if not os.path.exists(classes_file):
+        raise HTTPException(status_code=400, detail="ZIP file must contain classes.txt")
+
+    with open(classes_file, "r", encoding="utf-8") as f:
+        class_names = [line.strip() for line in f.readlines() if line.strip()]
+
+    if not class_names:
+        raise HTTPException(
+            status_code=400, detail="No valid class names found in classes.txt"
+        )
+    return class_names
+
+
+def _create_label_categories(
+    db: Session, class_names: list, project_id: int
+) -> Dict[int, int]:
+    """Create or get label categories for class names.
+
+    Args:
+        db: Database session.
+        class_names: List of class names.
+        project_id: Project ID.
+
+    Returns:
+        Dictionary mapping class index to category ID.
+    """
+    class_index_to_category_id = {}
+    for index, class_name in enumerate(class_names):
+        existing_category = (
+            db.query(LabelCategory)
+            .filter(
+                LabelCategory.name == class_name,
+                LabelCategory.project_id == project_id,
+            )
+            .first()
+        )
+        if existing_category:
+            class_index_to_category_id[index] = existing_category.id
+        else:
+            random_color = generate_random_color()
+            category = LabelCategory(
+                name=class_name, project_id=project_id, color=random_color
+            )
+            db.add(category)
+            db.flush()
+            class_index_to_category_id[index] = category.id
+    db.commit()
+    return class_index_to_category_id
+
+
+def _create_image_from_info(image_info: Dict[str, Any], dataset_id: int) -> Image:
+    """Create Image database object from image info.
+
+    Args:
+        image_info: Dictionary with image metadata.
+        dataset_id: Dataset ID.
+
+    Returns:
+        Image database object.
+    """
+    return Image(
+        filename=image_info["filename"],
+        original_filename=image_info["original_filename"],
+        file_path=image_info["file_path"],
+        thumbnail_path=image_info["thumbnail_path"],
+        width=image_info["width"],
+        height=image_info["height"],
+        file_size=image_info["file_size"],
+        mime_type=image_info["mime_type"],
+        dataset_id=dataset_id,
+    )
+
+
+def _process_annotations_from_file(
+    label_path: str,
+    image_info: Dict[str, Any],
+    class_index_to_category_id: Dict[int, int],
+    db: Session,
+) -> int:
+    """Process annotations from YOLO label file.
+
+    Args:
+        label_path: Path to label file.
+        image_info: Dictionary with image metadata including id, width, height.
+        class_index_to_category_id: Mapping from class index to category ID.
+        db: Database session.
+
+    Returns:
+        Number of annotations created.
+    """
+    if not os.path.exists(label_path):
+        return 0
+
+    annotation_count = 0
+    with open(label_path, "r", encoding="utf-8") as f:
+        yolo_lines = [line.strip() for line in f.readlines() if line.strip()]
+
+    for yolo_line in yolo_lines:
+        annotation_data = convert_yolo_to_annotation(
+            yolo_line, image_info["width"], image_info["height"]
+        )
+
+        if annotation_data:
+            class_index = annotation_data.pop("class_index")
+            label_category_id = class_index_to_category_id.get(class_index)
+
+            if label_category_id:
+                annotation = Annotation(
+                    image_id=image_info["id"],
+                    dataset_id=image_info["dataset_id"],
+                    label_category_id=label_category_id,
+                    annotation_data=annotation_data,
+                    confidence=1.0,
+                )
+                db.add(annotation)
+                annotation_count += 1
+
+    return annotation_count
+
+
+def _process_yolo_image(
+    image_file: str,
+    import_config: Dict[str, Any],
+    db: Session,
+) -> Tuple[int, int]:
+    """Process a single image file from YOLO import.
+
+    Args:
+        image_file: Name of image file.
+        import_config: Dictionary with keys: images_dir, labels_dir, dataset,
+            class_index_to_category_id.
+        db: Database session.
+
+    Returns:
+        Tuple of (imported_images_count, imported_annotations_count).
+    """
+    image_path = os.path.join(import_config["images_dir"], image_file)
+    label_path = os.path.join(
+        import_config["labels_dir"], os.path.splitext(image_file)[0] + ".txt"
+    )
+
+    if not validate_image(image_path):
+        return 0, 0
+
+    try:
+        image_info = process_uploaded_image(image_path, image_file)
+        image = _create_image_from_info(image_info, import_config["dataset"].id)
+        db.add(image)
+        db.flush()
+
+        full_image_info = {
+            **image_info,
+            "id": image.id,
+            "dataset_id": import_config["dataset"].id,
+        }
+        annotation_count = _process_annotations_from_file(
+            label_path,
+            full_image_info,
+            import_config["class_index_to_category_id"],
+            db,
+        )
+
+        return 1, annotation_count
+    except (OSError, IOError, ValueError, KeyError) as e:
+        print(f"Error importing image {image_file}: {e}")
+        return 0, 0
+
+
+def _setup_import_directories() -> None:
+    """Ensure upload directories exist for YOLO import."""
+    backend_dir = os.path.dirname(os.path.abspath(__file__))
+    proj_root = os.path.dirname(backend_dir)
+    for upload_dir in ["uploads/images", "uploads/thumbnails"]:
+        os.makedirs(os.path.join(proj_root, upload_dir), exist_ok=True)
+
+
+def _get_image_files(images_dir: str) -> list:
+    """Get list of image files from directory.
+
+    Args:
+        images_dir: Directory containing images.
+
+    Returns:
+        List of image filenames.
+    """
+    return [
+        f
+        for f in os.listdir(images_dir)
+        if f.lower().endswith(
+            (".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".webp", ".gif")
+        )
+    ]
+
+
+def _validate_zip_structure(temp_dir: str) -> Tuple[str, str]:
+    """Validate ZIP structure and return directory paths.
+
+    Args:
+        temp_dir: Temporary directory where ZIP was extracted.
+
+    Returns:
+        Tuple of (images_dir, labels_dir).
+
+    Raises:
+        HTTPException: If required directories are missing.
+    """
+    images_dir = os.path.join(temp_dir, "images")
+    labels_dir = os.path.join(temp_dir, "labels")
+
+    if not os.path.exists(images_dir):
+        raise HTTPException(
+            status_code=400, detail="ZIP file must contain images/ directory"
+        )
+    if not os.path.exists(labels_dir):
+        raise HTTPException(
+            status_code=400, detail="ZIP file must contain labels/ directory"
+        )
+    return images_dir, labels_dir
+
+
+def _process_all_images(
+    image_files: list,
+    import_config: Dict[str, Any],
+    db: Session,
+) -> Dict[str, int]:
+    """Process all images and return statistics.
+
+    Args:
+        image_files: List of image filenames.
+        import_config: Import configuration dictionary.
+        db: Database session.
+
+    Returns:
+        Dictionary with statistics.
+    """
+    stats = {"imported_images": 0, "imported_annotations": 0, "skipped_images": 0}
+
+    for image_file in image_files:
+        img_count, ann_count = _process_yolo_image(image_file, import_config, db)
+        stats["imported_images"] += img_count
+        stats["imported_annotations"] += ann_count
+        if img_count == 0:
+            stats["skipped_images"] += 1
+
+    return stats
+
+
+def _extract_yolo_zip(zip_buffer: io.BytesIO) -> str:
+    """Extract YOLO ZIP file to temporary directory.
+
+    Args:
+        zip_buffer: BytesIO buffer containing ZIP file.
+
+    Returns:
+        Path to temporary extraction directory.
+    """
+    temp_dir = tempfile.mkdtemp()
+    with zipfile.ZipFile(zip_buffer, "r") as zip_file:
+        zip_file.extractall(temp_dir)
+    return temp_dir
+
+
 @app.post("/api/import/yolo")
-async def import_yolo(  # pylint: disable=too-many-locals
+async def import_yolo(
     file: UploadFile = File(...),
     project_id: int = Form(...),
     dataset_id: Optional[int] = Form(None),
@@ -1073,206 +1387,47 @@ async def import_yolo(  # pylint: disable=too-many-locals
     Returns:
         Success message with import statistics.
     """
-    # Validate file type
     if not file.filename or not file.filename.endswith(".zip"):
         raise HTTPException(status_code=400, detail="File must be a .zip file")
 
-    # Check if project exists
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
+    if not db.query(Project).filter(Project.id == project_id).first():
         raise HTTPException(status_code=404, detail="Project not found")
 
-    # Get or create default dataset
-    if dataset_id:
-        dataset = db.query(Dataset).filter(Dataset.id == dataset_id).first()
-        if not dataset:
-            raise HTTPException(status_code=404, detail="Dataset not found")
-    else:
-        # Get default dataset or create one
-        dataset = (
-            db.query(Dataset)
-            .filter(Dataset.name == "Default Dataset", Dataset.project_id == project_id)
-            .first()
-        )
-        if not dataset:
-            dataset = Dataset(
-                name="Default Dataset",
-                description="Default dataset",
-                project_id=project_id,
-            )
-            db.add(dataset)
-            db.commit()
-            db.refresh(dataset)
+    dataset = _get_or_create_dataset(db, project_id, dataset_id)
+    temp_dir = _extract_yolo_zip(io.BytesIO(await file.read()))
 
-    # Read ZIP file
-    content = await file.read()
-    zip_buffer = io.BytesIO(content)
-
-    # Create temporary directory for extraction
-    temp_dir = tempfile.mkdtemp()
     try:
-        # Extract ZIP
-        with zipfile.ZipFile(zip_buffer, "r") as zip_file:
-            zip_file.extractall(temp_dir)
+        class_names = _read_classes_from_zip(temp_dir)
+        class_index_to_category_id = _create_label_categories(
+            db, class_names, project_id
+        )
 
-        # Read classes.txt
-        classes_file = os.path.join(temp_dir, "classes.txt")
-        if not os.path.exists(classes_file):
-            raise HTTPException(
-                status_code=400, detail="ZIP file must contain classes.txt"
-            )
+        images_dir, labels_dir = _validate_zip_structure(temp_dir)
+        _setup_import_directories()
 
-        with open(classes_file, "r", encoding="utf-8") as f:
-            class_names = [line.strip() for line in f.readlines() if line.strip()]
+        import_config = {
+            "images_dir": images_dir,
+            "labels_dir": labels_dir,
+            "dataset": dataset,
+            "class_index_to_category_id": class_index_to_category_id,
+        }
 
-        if not class_names:
-            raise HTTPException(
-                status_code=400, detail="No valid class names found in classes.txt"
-            )
-
-        # Create or get label categories
-        class_index_to_category_id = {}
-        for index, class_name in enumerate(class_names):
-            # Check if category already exists
-            existing_category = (
-                db.query(LabelCategory)
-                .filter(
-                    LabelCategory.name == class_name,
-                    LabelCategory.project_id == project_id,
-                )
-                .first()
-            )
-            if existing_category:
-                class_index_to_category_id[index] = existing_category.id
-            else:
-                # Create new category
-                random_color = generate_random_color()
-                category = LabelCategory(
-                    name=class_name, project_id=project_id, color=random_color
-                )
-                db.add(category)
-                db.flush()
-                class_index_to_category_id[index] = category.id
-
-        db.commit()
-
-        # Process images and annotations
-        images_dir = os.path.join(temp_dir, "images")
-        labels_dir = os.path.join(temp_dir, "labels")
-
-        if not os.path.exists(images_dir):
-            raise HTTPException(
-                status_code=400, detail="ZIP file must contain images/ directory"
-            )
-
-        if not os.path.exists(labels_dir):
-            raise HTTPException(
-                status_code=400, detail="ZIP file must contain labels/ directory"
-            )
-
-        # Get list of image files
-        image_files = [
-            f
-            for f in os.listdir(images_dir)
-            if f.lower().endswith(
-                (".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".webp", ".gif")
-            )
-        ]
-
-        imported_images = 0
-        imported_annotations = 0
-        skipped_images = 0
-
-        # Get absolute paths
-        backend_dir = os.path.dirname(os.path.abspath(__file__))
-        project_root = os.path.dirname(backend_dir)
-        uploads_images_dir = os.path.join(project_root, "uploads", "images")
-        uploads_thumbnails_dir = os.path.join(project_root, "uploads", "thumbnails")
-
-        # Ensure upload directories exist
-        os.makedirs(uploads_images_dir, exist_ok=True)
-        os.makedirs(uploads_thumbnails_dir, exist_ok=True)
-
-        for image_file in image_files:
-            image_path = os.path.join(images_dir, image_file)
-            label_file = os.path.splitext(image_file)[0] + ".txt"
-            label_path = os.path.join(labels_dir, label_file)
-
-            # Validate image
-            if not validate_image(image_path):
-                skipped_images += 1
-                continue
-
-            try:
-                # Process image (move to uploads directory and create thumbnail)
-                image_info = process_uploaded_image(image_path, image_file)
-
-                # Create image record
-                image = Image(
-                    filename=image_info["filename"],
-                    original_filename=image_info["original_filename"],
-                    file_path=image_info["file_path"],
-                    thumbnail_path=image_info["thumbnail_path"],
-                    width=image_info["width"],
-                    height=image_info["height"],
-                    file_size=image_info["file_size"],
-                    mime_type=image_info["mime_type"],
-                    dataset_id=dataset.id,
-                )
-
-                db.add(image)
-                db.flush()
-                imported_images += 1
-
-                # Process annotations if label file exists
-                if os.path.exists(label_path):
-                    with open(label_path, "r", encoding="utf-8") as f:
-                        yolo_lines = [
-                            line.strip() for line in f.readlines() if line.strip()
-                        ]
-
-                    for yolo_line in yolo_lines:
-                        # Convert YOLO format to internal format
-                        annotation_data = convert_yolo_to_annotation(
-                            yolo_line, image_info["width"], image_info["height"]
-                        )
-
-                        if annotation_data:
-                            class_index = annotation_data.pop("class_index")
-                            label_category_id = class_index_to_category_id.get(
-                                class_index
-                            )
-
-                            if label_category_id:
-                                annotation = Annotation(
-                                    image_id=image.id,
-                                    dataset_id=dataset.id,
-                                    label_category_id=label_category_id,
-                                    annotation_data=annotation_data,
-                                    confidence=1.0,
-                                )
-                                db.add(annotation)
-                                imported_annotations += 1
-
-            except Exception as e:
-                print(f"Error importing image {image_file}: {e}")
-                skipped_images += 1
-                continue
+        stats = _process_all_images(_get_image_files(images_dir), import_config, db)
 
         db.commit()
 
         return {
             "message": "YOLO dataset imported successfully",
             "statistics": {
-                "images_imported": imported_images,
-                "annotations_imported": imported_annotations,
+                "images_imported": stats["imported_images"],
+                "annotations_imported": stats["imported_annotations"],
                 "classes_imported": len(class_names),
-                "images_skipped": skipped_images,
+                "images_skipped": stats["skipped_images"],
             },
         }
 
-    except zipfile.BadZipFile:
-        raise HTTPException(status_code=400, detail="Invalid ZIP file format")
+    except zipfile.BadZipFile as exc:
+        raise HTTPException(status_code=400, detail="Invalid ZIP file format") from exc
     except Exception as e:
         db.rollback()
         raise HTTPException(

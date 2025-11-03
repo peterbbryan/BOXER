@@ -23,6 +23,23 @@ except ImportError:
     density = None
 
 
+def _normalize_to_uint8(data: np.ndarray) -> np.ndarray:
+    """Normalize array data to uint8 range.
+
+    Args:
+        data: Input array to normalize.
+
+    Returns:
+        Normalized uint8 array.
+    """
+    if data.dtype == np.uint8:
+        return data
+    data_min, data_max = data.min(), data.max()
+    if data_max > data_min:
+        return ((data - data_min) / (data_max - data_min) * 255).astype(np.uint8)
+    return np.zeros_like(data, dtype=np.uint8)
+
+
 def _load_r0_image(file_path: str) -> Optional[PILImage.Image]:
     """Load a .r0 raster file using rasterio and convert to PIL Image.
 
@@ -40,47 +57,23 @@ def _load_r0_image(file_path: str) -> Optional[PILImage.Image]:
             # Read the first band (or all bands if RGB)
             if src.count == 1:
                 data = src.read(1)
-                # Convert to uint8 if needed
-                if data.dtype != np.uint8:
-                    # Normalize to 0-255 range
-                    data_min, data_max = data.min(), data.max()
-                    if data_max > data_min:
-                        data = ((data - data_min) / (data_max - data_min) * 255).astype(
-                            np.uint8
-                        )
-                    else:
-                        data = np.zeros_like(data, dtype=np.uint8)
-                img = PILImage.fromarray(data, mode="L")
-            elif src.count >= 3:
+                normalized_data = _normalize_to_uint8(data)
+                return PILImage.fromarray(normalized_data, mode="L")
+            if src.count >= 3:
                 # Read RGB bands
                 r = src.read(1)
                 g = src.read(2)
                 b = src.read(3)
-                # Stack bands and normalize
-                if r.dtype != np.uint8:
-                    for band in [r, g, b]:
-                        band_min, band_max = band.min(), band.max()
-                        if band_max > band_min:
-                            band[:] = (
-                                (band - band_min) / (band_max - band_min) * 255
-                            ).astype(np.uint8)
-                        else:
-                            band[:] = np.zeros_like(band, dtype=np.uint8)
-                img = PILImage.fromarray(np.stack([r, g, b], axis=-1), mode="RGB")
-            else:
-                # For other cases, use first band
-                data = src.read(1)
-                if data.dtype != np.uint8:
-                    data_min, data_max = data.min(), data.max()
-                    if data_max > data_min:
-                        data = ((data - data_min) / (data_max - data_min) * 255).astype(
-                            np.uint8
-                        )
-                    else:
-                        data = np.zeros_like(data, dtype=np.uint8)
-                img = PILImage.fromarray(data, mode="L")
-            return img
-    except Exception as e:
+                # Normalize each band
+                r = _normalize_to_uint8(r)
+                g = _normalize_to_uint8(g)
+                b = _normalize_to_uint8(b)
+                return PILImage.fromarray(np.stack([r, g, b], axis=-1), mode="RGB")
+            # For other cases, use first band
+            data = src.read(1)
+            normalized_data = _normalize_to_uint8(data)
+            return PILImage.fromarray(normalized_data, mode="L")
+    except (rasterio.errors.RasterioIOError, OSError, ValueError) as e:
         print(f"Error loading .r0 file with rasterio: {e}")
         return None
 
@@ -131,7 +124,7 @@ def _load_sicd_image(file_path: str) -> Optional[PILImage.Image]:
             img = PILImage.fromarray(remapped_data.squeeze(), mode="L")
 
         return img
-    except Exception as e:
+    except (OSError, ValueError, AttributeError, KeyError) as e:
         print(f"Error loading SICD file with Sarpy: {e}")
         return None
 
@@ -149,7 +142,7 @@ def _load_special_image(file_path: str) -> Optional[PILImage.Image]:
 
     if file_ext == ".r0":
         return _load_r0_image(file_path)
-    elif file_ext in [".sicd", ".nitf", ".ntf", ".nff"]:
+    if file_ext in [".sicd", ".nitf", ".ntf", ".nff"]:
         # SICD files can have various extensions: .sicd, .nitf, .ntf, or .nff
         return _load_sicd_image(file_path)
 
@@ -174,7 +167,7 @@ def _save_as_pil_compatible(file_path: str, output_path: str) -> bool:
         # Save as PNG (lossless and widely supported)
         img.save(output_path, "PNG")
         return True
-    except Exception as e:
+    except (OSError, IOError, ValueError) as e:
         print(f"Error saving converted image: {e}")
         return False
 
@@ -255,6 +248,61 @@ def get_image_info(image_path: str) -> Dict[str, any]:
         return {}
 
 
+def _validate_r0_image(file_path: str) -> bool:
+    """Validate .r0 raster image file.
+
+    Args:
+        file_path: Path to the .r0 file.
+
+    Returns:
+        True if valid, False otherwise.
+    """
+    if rasterio is None:
+        return False
+    try:
+        with rasterio.open(file_path) as src:
+            _ = src.width, src.height
+        return True
+    except (rasterio.errors.RasterioIOError, OSError, ValueError):
+        return False
+
+
+def _validate_sicd_image(file_path: str) -> bool:
+    """Validate SICD image file.
+
+    Args:
+        file_path: Path to the SICD file.
+
+    Returns:
+        True if valid, False otherwise.
+    """
+    if SICDReader is None:
+        return False
+    try:
+        reader = SICDReader(file_path)
+        _ = reader.sicd_meta
+        return True
+    except (OSError, ValueError, AttributeError, KeyError):
+        return False
+
+
+def _validate_pil_image(file_path: str) -> bool:
+    """Validate standard PIL image file.
+
+    Args:
+        file_path: Path to the image file.
+
+    Returns:
+        True if valid, False otherwise.
+    """
+    try:
+        with PILImage.open(file_path) as img:
+            img.verify()
+        return True
+    except (OSError, IOError):
+        return False
+
+
 def validate_image(file_path: str) -> bool:
     """Validate if file is a valid image.
 
@@ -264,35 +312,12 @@ def validate_image(file_path: str) -> bool:
     Returns:
         True if the file is a valid image, False otherwise.
     """
-    # Check for special formats first
     file_ext = os.path.splitext(file_path)[1].lower()
     if file_ext == ".r0":
-        if rasterio is None:
-            return False
-        try:
-            with rasterio.open(file_path) as src:
-                # Just verify we can open it
-                _ = src.width, src.height
-            return True
-        except Exception:
-            return False
-    elif file_ext in [".sicd", ".nitf", ".ntf", ".nff"]:
-        if SICDReader is None:
-            return False
-        try:
-            reader = SICDReader(file_path)
-            _ = reader.sicd_meta  # Verify we can read metadata
-            return True
-        except Exception:
-            return False
-
-    # Standard PIL validation
-    try:
-        with PILImage.open(file_path) as img:
-            img.verify()
-        return True
-    except (OSError, IOError):
-        return False
+        return _validate_r0_image(file_path)
+    if file_ext in [".sicd", ".nitf", ".ntf", ".nff"]:
+        return _validate_sicd_image(file_path)
+    return _validate_pil_image(file_path)
 
 
 def generate_unique_filename(original_filename: str) -> str:
@@ -330,6 +355,63 @@ def ensure_upload_directories() -> None:
         Path(directory).mkdir(parents=True, exist_ok=True)
 
 
+def _get_mime_type(format_name: str, needs_conversion: bool) -> str:
+    """Get MIME type for given format.
+
+    Args:
+        format_name: Format name (lowercase).
+        needs_conversion: Whether file was converted from special format.
+
+    Returns:
+        MIME type string.
+    """
+    mime_type_map = {
+        "jpeg": "image/jpeg",
+        "jpg": "image/jpeg",
+        "png": "image/png",
+        "gif": "image/gif",
+        "bmp": "image/bmp",
+        "tiff": "image/tiff",
+        "webp": "image/webp",
+        "r0": "image/r0",
+        "sicd": "image/sicd",
+        "nitf": "image/nitf",
+        "ntf": "image/nitf",
+        "nff": "image/nitf",
+    }
+    return mime_type_map.get(
+        format_name, "image/png" if needs_conversion else f"image/{format_name}"
+    )
+
+
+def _process_special_format(
+    file_path: str, original_filename: str, project_root: str
+) -> Tuple[str, str]:
+    """Process special format file conversion.
+
+    Args:
+        file_path: Path to temporary file.
+        original_filename: Original filename.
+        project_root: Project root directory.
+
+    Returns:
+        Tuple of (unique_filename, final_path).
+    """
+    base_name = os.path.splitext(original_filename)[0]
+    unique_filename = f"{base_name}_{str(uuid.uuid4())[:8]}.png"
+    converted_path = os.path.join(project_root, "uploads", "images", unique_filename)
+
+    if not _save_as_pil_compatible(file_path, converted_path):
+        raise ValueError(
+            f"Failed to convert {original_filename} to standard image format"
+        )
+
+    if os.path.exists(file_path):
+        os.remove(file_path)
+
+    return unique_filename, converted_path
+
+
 def process_uploaded_image(file_path: str, original_filename: str) -> Dict[str, any]:
     """Process an uploaded image and create thumbnail.
 
@@ -347,80 +429,35 @@ def process_uploaded_image(file_path: str, original_filename: str) -> Dict[str, 
     """
     ensure_upload_directories()
 
-    # Get absolute paths
     backend_dir = os.path.dirname(os.path.abspath(__file__))
     project_root = os.path.dirname(backend_dir)
 
-    # Check if this is a special format that needs conversion
     file_ext = os.path.splitext(original_filename)[1].lower()
     needs_conversion = file_ext in [".r0", ".sicd", ".nitf", ".ntf", ".nff"]
 
     if needs_conversion:
-        # Generate unique filename with .png extension for converted files
-        base_name = os.path.splitext(original_filename)[0]
-        unique_filename = f"{base_name}_{str(uuid.uuid4())[:8]}.png"
-        converted_path = os.path.join(
-            project_root, "uploads", "images", unique_filename
+        unique_filename, final_path = _process_special_format(
+            file_path, original_filename, project_root
         )
-
-        # Convert special format to PNG
-        if not _save_as_pil_compatible(file_path, converted_path):
-            raise ValueError(
-                f"Failed to convert {original_filename} to standard image format"
-            )
-
-        # Delete original temporary file
-        if os.path.exists(file_path):
-            os.remove(file_path)
-
-        final_path = converted_path
-        stored_original_filename = original_filename  # Keep original name for reference
     else:
-        # Generate unique filename
         unique_filename = generate_unique_filename(original_filename)
-
-        # Move to images directory (use absolute paths)
         images_dir = os.path.join(project_root, "uploads", "images")
         final_path = os.path.join(images_dir, unique_filename)
-
-        # Move file
         os.rename(file_path, final_path)
-        stored_original_filename = original_filename
 
-    # Create thumbnail (use absolute paths)
     thumbnail_dir = os.path.join(project_root, "uploads", "thumbnails")
     thumbnail_filename = f"thumb_{unique_filename}"
     thumbnail_path = os.path.join(thumbnail_dir, thumbnail_filename)
 
     create_thumbnail(final_path, thumbnail_path)
 
-    # Get image info
     image_info = get_image_info(final_path)
-
-    # Get proper MIME type
     format_name = image_info.get("format", "").lower()
-    mime_type_map = {
-        "jpeg": "image/jpeg",
-        "jpg": "image/jpeg",
-        "png": "image/png",
-        "gif": "image/gif",
-        "bmp": "image/bmp",
-        "tiff": "image/tiff",
-        "webp": "image/webp",
-        "r0": "image/r0",
-        "sicd": "image/sicd",
-        "nitf": "image/nitf",
-        "ntf": "image/nitf",
-        "nff": "image/nitf",
-    }
-    mime_type = mime_type_map.get(
-        format_name, "image/png" if needs_conversion else f"image/{format_name}"
-    )
+    mime_type = _get_mime_type(format_name, needs_conversion)
 
-    # Return relative paths for storage in database
     return {
         "filename": unique_filename,
-        "original_filename": stored_original_filename,
+        "original_filename": original_filename,
         "file_path": os.path.join("uploads", "images", unique_filename),
         "thumbnail_path": os.path.join("uploads", "thumbnails", thumbnail_filename),
         "width": image_info.get("width", 0),
@@ -496,6 +533,50 @@ def convert_annotation_to_yolo(  # pylint: disable=too-many-locals
     return ""
 
 
+def _clamp_coordinate(value: float, max_value: int) -> float:
+    """Clamp coordinate value to valid range.
+
+    Args:
+        value: Coordinate value to clamp.
+        max_value: Maximum allowed value.
+
+    Returns:
+        Clamped coordinate value.
+    """
+    return max(0.0, min(float(value), float(max_value)))
+
+
+def _yolo_to_bbox_coords(
+    normalized_coords: Dict[str, float], image_width: int, image_height: int
+) -> Tuple[float, float, float, float]:
+    """Convert YOLO normalized coordinates to bbox coordinates.
+
+    Args:
+        normalized_coords: Dictionary with keys: center_x, center_y, width, height.
+        image_width: Image width in pixels.
+        image_height: Image height in pixels.
+
+    Returns:
+        Tuple of (start_x, start_y, end_x, end_y).
+    """
+    center_x = normalized_coords["center_x"] * image_width
+    center_y = normalized_coords["center_y"] * image_height
+    width = normalized_coords["width"] * image_width
+    height = normalized_coords["height"] * image_height
+
+    start_x = center_x - (width / 2.0)
+    start_y = center_y - (height / 2.0)
+    end_x = center_x + (width / 2.0)
+    end_y = center_y + (height / 2.0)
+
+    start_x = _clamp_coordinate(start_x, image_width)
+    start_y = _clamp_coordinate(start_y, image_height)
+    end_x = _clamp_coordinate(end_x, image_width)
+    end_y = _clamp_coordinate(end_y, image_height)
+
+    return start_x, start_y, end_x, end_y
+
+
 def convert_yolo_to_annotation(
     yolo_line: str,
     image_width: int,
@@ -516,30 +597,16 @@ def convert_yolo_to_annotation(
         if len(parts) < 5:
             return None
 
-        # YOLO format: class_index center_x center_y width height (all normalized)
         class_index = int(parts[0])
-        normalized_center_x = float(parts[1])
-        normalized_center_y = float(parts[2])
-        normalized_width = float(parts[3])
-        normalized_height = float(parts[4])
-
-        # Denormalize coordinates
-        center_x = normalized_center_x * image_width
-        center_y = normalized_center_y * image_height
-        width = normalized_width * image_width
-        height = normalized_height * image_height
-
-        # Convert center-based to corner-based bbox
-        start_x = center_x - (width / 2.0)
-        start_y = center_y - (height / 2.0)
-        end_x = center_x + (width / 2.0)
-        end_y = center_y + (height / 2.0)
-
-        # Ensure coordinates are within image bounds
-        start_x = max(0, min(start_x, image_width))
-        start_y = max(0, min(start_y, image_height))
-        end_x = max(0, min(end_x, image_width))
-        end_y = max(0, min(end_y, image_height))
+        normalized_coords = {
+            "center_x": float(parts[1]),
+            "center_y": float(parts[2]),
+            "width": float(parts[3]),
+            "height": float(parts[4]),
+        }
+        start_x, start_y, end_x, end_y = _yolo_to_bbox_coords(
+            normalized_coords, image_width, image_height
+        )
 
         return {
             "tool": "bbox",

@@ -12,7 +12,7 @@ repos:
         name: pylint
         entry: venv/bin/pylint
         language: system
-        args: [--rcfile=pylintrc, backend/]
+        args: [--rcfile=pylintrc, --fail-under=10, backend/]
         files: ^backend/.*\.py$
         pass_filenames: false
 
