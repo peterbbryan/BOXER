@@ -108,7 +108,33 @@ def cleanup_test_files():
                     f"  {status}: {img.filename} (original: {img.original_filename}, ID: {img.id})"
                 )
 
-        print(f"\n🗑️  Found {len(test_images)} test images to clean up")
+        # Additional safety check: Only delete images where original_filename indicates it's a test image
+        # This prevents deleting production images that happen to match test filename patterns
+        test_exact_names = ["test.jpg", "ui_test.jpg", "test.png", "ui_test.png"]
+        confirmed_test_images = []
+
+        for img in test_images:
+            # An image is confirmed as a test image if its original_filename:
+            # 1. Starts with a test prefix pattern (e.g., "test_", "ui_test_", etc.), OR
+            # 2. Is an exact test name (e.g., "test.jpg", "ui_test.jpg")
+            original_filename = img.original_filename
+            starts_with_test_prefix = any(
+                original_filename.startswith(pattern) for pattern in test_patterns
+            )
+            is_exact_test_name = original_filename in test_exact_names
+
+            if starts_with_test_prefix or is_exact_test_name:
+                confirmed_test_images.append(img)
+            else:
+                # This image matched test patterns but original_filename doesn't indicate it's a test
+                # This could be a production image that happens to match, so skip it
+                print(
+                    f"  ⚠️  Skipping suspicious match: {img.filename} (original: {img.original_filename})"
+                )
+
+        test_images = confirmed_test_images
+
+        print(f"\n🗑️  Found {len(test_images)} confirmed test images to clean up")
         if test_images:
             for img in test_images:
                 print(
@@ -226,7 +252,7 @@ def cleanup_test_categories():
     are NOT affected by this cleanup.
     """
     try:
-        from backend.database import SessionLocal, LabelCategory, Annotation
+        from backend.database import SessionLocal, LabelCategory, Annotation, Image
     except ModuleNotFoundError as e:
         print(f"⚠️  Warning: Cannot import database modules for cleanup: {e}")
         return 0
@@ -285,10 +311,82 @@ def cleanup_test_categories():
         # Get category IDs
         category_ids = [cat.id for cat in test_categories]
 
-        # Delete annotations using these categories
-        db.query(Annotation).filter(
-            Annotation.label_category_id.in_(category_ids)
-        ).delete()
+        # CRITICAL: Only delete annotations that are on test images AND use test categories
+        # We need to identify test images first to avoid deleting production annotations
+        from sqlalchemy import and_
+
+        # Get test image IDs using the same logic as cleanup_test_files
+        test_image_ids = []
+        test_patterns_for_categories = [
+            "test_",
+            "ui_test_",
+            "concurrent_",
+            "persistence_test_",
+            "test_workflow_",
+        ]
+        test_exact_names = ["test.jpg", "ui_test.jpg", "test.png", "ui_test.png"]
+
+        image_extensions = [".jpg", ".jpeg", ".png", ".bmp"]
+        image_filters = []
+
+        # Build the same filters as cleanup_test_files to identify test images
+        for pattern in test_patterns_for_categories:
+            for ext in image_extensions:
+                pattern_with_ext = f"{pattern}%{ext}"
+                image_filters.append(
+                    and_(
+                        Image.filename.like(pattern_with_ext),
+                        Image.original_filename.like(pattern_with_ext),
+                    )
+                )
+
+        for pattern in test_patterns_for_categories:
+            for ext in image_extensions:
+                pattern_with_ext = f"{pattern}%{ext}"
+                for exact_name in test_exact_names:
+                    image_filters.append(
+                        and_(
+                            Image.filename.like(pattern_with_ext),
+                            Image.original_filename == exact_name,
+                        )
+                    )
+
+        for name in test_exact_names:
+            image_filters.append(
+                and_(Image.filename == name, Image.original_filename == name)
+            )
+
+        if image_filters:
+            test_images_for_categories = (
+                db.query(Image.id).filter(or_(*image_filters)).all()
+            )
+            test_image_ids = [img_id[0] for img_id in test_images_for_categories]
+
+        # Only delete annotations that:
+        # 1. Use test categories AND
+        # 2. Are on test images (not production images)
+        if test_image_ids and category_ids:
+            annotations_to_delete = (
+                db.query(Annotation)
+                .filter(
+                    and_(
+                        Annotation.label_category_id.in_(category_ids),
+                        Annotation.image_id.in_(test_image_ids),
+                    )
+                )
+                .all()
+            )
+            annotation_count = len(annotations_to_delete)
+            for ann in annotations_to_delete:
+                db.delete(ann)
+            print(
+                f"  Deleted {annotation_count} annotations on test images using test categories"
+            )
+        elif category_ids:
+            # If no test images found, don't delete any annotations
+            print(
+                "  ⚠️  No test images found - skipping annotation deletion to protect production data"
+            )
 
         # Delete the categories
         deleted = (
@@ -296,7 +394,7 @@ def cleanup_test_categories():
         )
 
         db.commit()
-        print(f"\n✅ Deleted {deleted} test categories and associated annotations")
+        print(f"\n✅ Deleted {deleted} test categories")
 
         # Show remaining production categories
         remaining_categories = db.query(LabelCategory).all()
