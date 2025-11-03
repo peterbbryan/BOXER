@@ -722,7 +722,7 @@ def cleanup_test_projects():
     - "YOLO Test Project" (exact match)
     - "Test Project" (exact match)
     - "Performance Test Project" (exact match)
-    - Any project name containing "Test" that was created during tests
+    - "Updated Project Name" (exact match - created by workflow tests)
 
     Production projects (e.g., "Default Project", user-created projects)
     are NOT affected by this cleanup.
@@ -741,6 +741,7 @@ def cleanup_test_projects():
             "YOLO Test Project",  # Exact match
             "Test Project",  # Exact match
             "Performance Test Project",  # Exact match
+            "Updated Project Name",  # Exact match (created by workflow tests)
         ]
 
         # Find test projects using specific test names only
