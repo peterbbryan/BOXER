@@ -29,16 +29,19 @@ def cleanup_test_files():
         # This prevents deleting production images even if they match filename patterns
         from backend.database import Dataset
 
-        # Identify test datasets (datasets with names that indicate they're for testing)
-        test_dataset_patterns = ["Test Dataset", "test", "Test"]
+        # Identify test datasets - ONLY match datasets that are clearly test datasets
+        # CRITICAL: Be very strict to avoid matching production datasets
+        # Only match:
+        # 1. Exact name "Test Dataset" (the standard test dataset name)
+        # 2. Datasets that start with "Test Dataset" (e.g., "Test Dataset 1")
+        # 3. Exact name "test" (lowercase, as used in some tests)
         test_datasets = (
             db.query(Dataset)
             .filter(
                 or_(
-                    *[
-                        Dataset.name.like(f"%{pattern}%")
-                        for pattern in test_dataset_patterns
-                    ]
+                    Dataset.name == "Test Dataset",  # Exact match
+                    Dataset.name.like("Test Dataset%"),  # Starts with "Test Dataset"
+                    Dataset.name == "test",  # Exact lowercase match
                 )
             )
             .all()
