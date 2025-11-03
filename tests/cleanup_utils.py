@@ -7,7 +7,11 @@ from pathlib import Path
 
 
 def cleanup_test_files():
-    """Remove all test files created during testing and their database records"""
+    """Remove all test files created during testing and their database records
+
+    CRITICAL SAFETY: This function will NEVER delete images from "Default Dataset" or
+    any dataset that doesn't explicitly match test dataset patterns.
+    """
     try:
         from backend.database import SessionLocal, Image, Annotation
     except ModuleNotFoundError as e:
@@ -31,6 +35,7 @@ def cleanup_test_files():
 
         # Identify test datasets - ONLY match datasets that are clearly test datasets
         # CRITICAL: Be very strict to avoid matching production datasets
+        # EXCLUDE "Default Dataset" - this is the production dataset name
         # Only match:
         # 1. Exact name "Test Dataset" (the standard test dataset name)
         # 2. Datasets that start with "Test Dataset" (e.g., "Test Dataset 1")
@@ -38,10 +43,15 @@ def cleanup_test_files():
         test_datasets = (
             db.query(Dataset)
             .filter(
-                or_(
-                    Dataset.name == "Test Dataset",  # Exact match
-                    Dataset.name.like("Test Dataset%"),  # Starts with "Test Dataset"
-                    Dataset.name == "test",  # Exact lowercase match
+                and_(
+                    Dataset.name != "Default Dataset",  # NEVER match production dataset
+                    or_(
+                        Dataset.name == "Test Dataset",  # Exact match
+                        Dataset.name.like(
+                            "Test Dataset%"
+                        ),  # Starts with "Test Dataset"
+                        Dataset.name == "test",  # Exact lowercase match
+                    ),
                 )
             )
             .all()
@@ -155,6 +165,19 @@ def cleanup_test_files():
                 print(
                     f"  {status}: {img.filename} (original: {img.original_filename}, ID: {img.id})"
                 )
+
+        # FINAL SAFETY CHECK: Remove any images from "Default Dataset" - this is production!
+        protected_images = []
+        for img in test_images:
+            dataset = db.query(Dataset).filter(Dataset.id == img.dataset_id).first()
+            if dataset and dataset.name == "Default Dataset":
+                protected_images.append(img)
+                print(
+                    f"  🛡️  PROTECTING production image: {img.filename} (in 'Default Dataset')"
+                )
+
+        # Remove protected images from deletion list
+        test_images = [img for img in test_images if img not in protected_images]
 
         # Show what will be deleted
         print(
