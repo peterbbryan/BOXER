@@ -3,6 +3,9 @@ Test cleanup utilities for removing test artifacts
 
 This module ensures that only test-generated images and annotations are cleaned up,
 while protecting all production data including YOLO-imported images and model-generated annotations.
+
+The cleanup functions are designed to be safe and conservative, with multiple layers of protection
+to prevent accidental deletion of production data.
 """
 
 import os
