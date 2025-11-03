@@ -25,6 +25,9 @@ def cleanup_test_files():
     uploads_thumbnails = project_root / "uploads" / "thumbnails"
 
     removed_count = 0
+    test_images = (
+        []
+    )  # Initialize to empty list - will be populated if we find test images to delete
 
     # Get database session to track and delete test images from DB
     db = SessionLocal()
@@ -382,59 +385,166 @@ def cleanup_test_files():
     finally:
         db.close()
 
-    # Remove test images from filesystem (match all extensions)
-    # This also removes orphaned files that aren't in the database
-    directories_to_clean = [
-        (uploads_images, uploads_thumbnails),
-        (
-            project_root / "backend" / "uploads" / "images",
-            project_root / "backend" / "uploads" / "thumbnails",
-        ),
-    ]
+    # Remove test images from filesystem
+    # CRITICAL: Only delete files that belong to test images in the database
+    # This prevents deleting production files even if they match filename patterns
+    db = SessionLocal()
+    try:
+        from backend.database import Dataset
 
-    for images_dir, thumbnails_dir in directories_to_clean:
-        for ext in [".jpg", ".jpeg", ".png", ".bmp"]:
-            # Clean main images - match all test patterns
-            if images_dir.exists():
-                test_patterns = [
-                    f"test_*{ext}",
-                    f"ui_test_*{ext}",
-                    f"concurrent_*{ext}",
-                    f"persistence_test_*{ext}",
-                    f"test_workflow_*{ext}",
-                ]
-                test_files = []
-                for pattern in test_patterns:
-                    test_files.extend(list(images_dir.glob(pattern)))
+        # Get list of test image filenames that were actually deleted from database
+        # Only delete filesystem files that belong to these test images
+        test_image_filenames = set()
+        if test_images:
+            test_image_filenames = {img.filename for img in test_images}
 
-                for test_file in test_files:
-                    try:
-                        print(f"Removing filesystem test file: {test_file}")
-                        os.remove(test_file)
-                        removed_count += 1
-                    except OSError as e:
-                        print(f"Warning: Could not remove {test_file}: {e}")
+        # Also check for orphaned test files (not in database) but ONLY if they match test patterns
+        # AND we're sure they're not production files
+        directories_to_clean = [
+            (uploads_images, uploads_thumbnails),
+            (
+                project_root / "backend" / "uploads" / "images",
+                project_root / "backend" / "uploads" / "thumbnails",
+            ),
+        ]
 
-            # Clean thumbnails - match all test patterns
-            if thumbnails_dir.exists():
-                test_thumbnail_patterns = [
-                    f"thumb_test_*{ext}",
-                    f"thumb_ui_test_*{ext}",
-                    f"thumb_concurrent_*{ext}",
-                    f"thumb_persistence_test_*{ext}",
-                    f"thumb_test_workflow_*{ext}",
-                ]
-                test_thumbnails = []
-                for pattern in test_thumbnail_patterns:
-                    test_thumbnails.extend(list(thumbnails_dir.glob(pattern)))
+        for images_dir, thumbnails_dir in directories_to_clean:
+            for ext in [".jpg", ".jpeg", ".png", ".bmp"]:
+                # Clean main images - ONLY delete files that are in test_image_filenames
+                if images_dir.exists():
+                    test_patterns = [
+                        f"test_*{ext}",
+                        f"ui_test_*{ext}",
+                        f"concurrent_*{ext}",
+                        f"persistence_test_*{ext}",
+                        f"test_workflow_*{ext}",
+                    ]
+                    test_files = []
+                    for pattern in test_patterns:
+                        test_files.extend(list(images_dir.glob(pattern)))
 
-                for test_file in test_thumbnails:
-                    try:
-                        print(f"Removing filesystem test thumbnail: {test_file}")
-                        os.remove(test_file)
-                        removed_count += 1
-                    except OSError as e:
-                        print(f"Warning: Could not remove {test_file}: {e}")
+                    for test_file in test_files:
+                        filename = test_file.name
+                        # CRITICAL: Only delete if this file belongs to a test image we deleted
+                        # OR if it's an orphaned file (not in database) that matches test patterns
+                        # BUT first check if it exists in database - if so, protect it
+                        existing_image = (
+                            db.query(Image).filter(Image.filename == filename).first()
+                        )
+
+                        if existing_image:
+                            # File exists in database - check if it's a test image
+                            dataset = (
+                                db.query(Dataset)
+                                .filter(Dataset.id == existing_image.dataset_id)
+                                .first()
+                            )
+                            if dataset:
+                                # Only delete if it's in a test dataset
+                                is_test_dataset = (
+                                    dataset.name == "Test Dataset"
+                                    or dataset.name.startswith("Test Dataset")
+                                    or dataset.name == "test"
+                                )
+                                is_production_dataset = (
+                                    dataset.name == "Default Dataset"
+                                    or dataset.name == "YOLO Dataset"
+                                    or dataset.name.startswith("YOLO Dataset")
+                                )
+
+                                if is_production_dataset:
+                                    print(
+                                        f"  🛡️  PROTECTING filesystem file: {filename} (in production dataset '{dataset.name}')"
+                                    )
+                                    continue
+                                elif not is_test_dataset:
+                                    print(
+                                        f"  🛡️  PROTECTING filesystem file: {filename} (in dataset '{dataset.name}', not test dataset)"
+                                    )
+                                    continue
+
+                        # Safe to delete: either it's a test image we deleted, or it's an orphaned test file
+                        if filename in test_image_filenames or not existing_image:
+                            try:
+                                print(f"Removing filesystem test file: {test_file}")
+                                os.remove(test_file)
+                                removed_count += 1
+                            except OSError as e:
+                                print(f"Warning: Could not remove {test_file}: {e}")
+
+                # Clean thumbnails - match test patterns but verify in database first
+                if thumbnails_dir.exists():
+                    test_thumbnail_patterns = [
+                        f"thumb_test_*{ext}",
+                        f"thumb_ui_test_*{ext}",
+                        f"thumb_concurrent_*{ext}",
+                        f"thumb_persistence_test_*{ext}",
+                        f"thumb_test_workflow_*{ext}",
+                    ]
+                    test_thumbnails = []
+                    for pattern in test_thumbnail_patterns:
+                        test_thumbnails.extend(list(thumbnails_dir.glob(pattern)))
+
+                    for test_file in test_thumbnails:
+                        filename = test_file.name
+                        # Extract the original image filename from thumbnail name
+                        # thumb_test_abc123.jpg -> test_abc123.jpg
+                        original_filename = filename.replace("thumb_", "")
+                        existing_image = (
+                            db.query(Image)
+                            .filter(Image.filename == original_filename)
+                            .first()
+                        )
+
+                        if existing_image:
+                            dataset = (
+                                db.query(Dataset)
+                                .filter(Dataset.id == existing_image.dataset_id)
+                                .first()
+                            )
+                            if dataset:
+                                is_test_dataset = (
+                                    dataset.name == "Test Dataset"
+                                    or dataset.name.startswith("Test Dataset")
+                                    or dataset.name == "test"
+                                )
+                                is_production_dataset = (
+                                    dataset.name == "Default Dataset"
+                                    or dataset.name == "YOLO Dataset"
+                                    or dataset.name.startswith("YOLO Dataset")
+                                )
+
+                                if is_production_dataset:
+                                    print(
+                                        f"  🛡️  PROTECTING filesystem thumbnail: {filename} (image in production dataset '{dataset.name}')"
+                                    )
+                                    continue
+                                elif not is_test_dataset:
+                                    print(
+                                        f"  🛡️  PROTECTING filesystem thumbnail: {filename} (image in dataset '{dataset.name}', not test dataset)"
+                                    )
+                                    continue
+
+                        # Safe to delete: either it's a test thumbnail we deleted, or it's orphaned
+                        if (
+                            original_filename in test_image_filenames
+                            or not existing_image
+                        ):
+                            try:
+                                print(
+                                    f"Removing filesystem test thumbnail: {test_file}"
+                                )
+                                os.remove(test_file)
+                                removed_count += 1
+                            except OSError as e:
+                                print(f"Warning: Could not remove {test_file}: {e}")
+    except Exception as e:
+        print(f"⚠️  Warning: Error during filesystem cleanup: {e}")
+        import traceback
+
+        traceback.print_exc()
+    finally:
+        db.close()
 
     return removed_count
 
