@@ -84,16 +84,9 @@ def cleanup_test_files():
 
         # GLOBAL SAFETY CHECK FIRST: Check ALL images in production datasets BEFORE querying
         # If ANY production images match test patterns, abort entirely - don't even query
+        # Only protect "Default Dataset" - test files in "YOLO Dataset" should be deleted
         all_production_datasets = (
-            db.query(Dataset)
-            .filter(
-                or_(
-                    Dataset.name == "Default Dataset",
-                    Dataset.name == "YOLO Dataset",
-                    Dataset.name.like("YOLO Dataset%"),
-                )
-            )
-            .all()
+            db.query(Dataset).filter(Dataset.name == "Default Dataset").all()
         )
 
         if all_production_datasets:
@@ -168,25 +161,33 @@ def cleanup_test_files():
         image_extensions = [".jpg", ".jpeg", ".png", ".bmp"]
 
         # Build filters that require:
-        # 1. Image is in a test dataset (CRITICAL SAFETY CHECK)
+        # 1. Image matches test filename patterns (CRITICAL SAFETY CHECK)
         # 2. BOTH filename AND original_filename indicate test images
+        # 3. Image is NOT in "Default Dataset" (only production dataset we protect)
         # An image is a test image if:
-        # - It's in a test dataset AND
+        # - It matches test filename patterns AND
+        # - It's NOT in "Default Dataset" AND
         # - (filename matches test pattern AND original_filename matches test pattern, OR
         #    filename matches test pattern AND original_filename is exact test name, OR
         #    both filename and original_filename are exact test names)
         filters = []
 
+        # Get all dataset IDs except "Default Dataset"
+        all_datasets = db.query(Dataset).all()
+        non_default_dataset_ids = [
+            ds.id for ds in all_datasets if ds.name != "Default Dataset"
+        ]
+
         # Pattern-based matches (e.g., test_abc123.jpg with test_xyz.jpg)
         for pattern in test_patterns:
             for ext in image_extensions:
                 pattern_with_ext = f"{pattern}%{ext}"
-                # Both filename and original_filename match the pattern AND image is in test dataset
+                # Both filename and original_filename match the pattern AND NOT in Default Dataset
                 filters.append(
                     and_(
                         Image.dataset_id.in_(
-                            test_dataset_ids
-                        ),  # CRITICAL: Must be in test dataset
+                            non_default_dataset_ids
+                        ),  # CRITICAL: Must NOT be in Default Dataset
                         Image.filename.like(pattern_with_ext),
                         Image.original_filename.like(pattern_with_ext),
                     )
@@ -199,24 +200,24 @@ def cleanup_test_files():
             for ext in image_extensions:
                 pattern_with_ext = f"{pattern}%{ext}"
                 for exact_name in test_exact_names:
-                    # filename matches pattern AND original_filename is exact test name AND in test dataset
+                    # filename matches pattern AND original_filename is exact test name AND NOT in Default Dataset
                     filters.append(
                         and_(
                             Image.dataset_id.in_(
-                                test_dataset_ids
-                            ),  # CRITICAL: Must be in test dataset
+                                non_default_dataset_ids
+                            ),  # CRITICAL: Must NOT be in Default Dataset
                             Image.filename.like(pattern_with_ext),
                             Image.original_filename == exact_name,
                         )
                     )
 
-        # Also match exact test filenames (require BOTH to match exactly AND be in test dataset)
+        # Also match exact test filenames (require BOTH to match exactly AND NOT in Default Dataset)
         for name in test_exact_names:
             filters.append(
                 and_(
                     Image.dataset_id.in_(
-                        test_dataset_ids
-                    ),  # CRITICAL: Must be in test dataset
+                        non_default_dataset_ids
+                    ),  # CRITICAL: Must NOT be in Default Dataset
                     Image.filename == name,
                     Image.original_filename == name,
                 )
@@ -246,8 +247,8 @@ def cleanup_test_files():
                     f"  {status}: {img.filename} (original: {img.original_filename}, ID: {img.id})"
                 )
 
-        # CRITICAL FINAL CHECK: Before deletion, verify EVERY image is actually in a test dataset
-        # This is the absolute last line of defense - filter out any images not in test datasets
+        # CRITICAL FINAL CHECK: Before deletion, verify EVERY image is NOT in "Default Dataset"
+        # This is the absolute last line of defense - filter out any images in Default Dataset
         final_test_images = []
         for img in test_images:
             dataset = db.query(Dataset).filter(Dataset.id == img.dataset_id).first()
@@ -255,38 +256,28 @@ def cleanup_test_files():
                 print(f"  ⚠️  Image {img.id} has no dataset - skipping")
                 continue
 
-            # Only include if dataset is actually in our test datasets list
-            if dataset.id in test_dataset_ids:
+            # Only include if dataset is NOT "Default Dataset"
+            if dataset.name != "Default Dataset":
                 final_test_images.append(img)
             else:
                 print(
-                    f"  🛡️  PROTECTING: {img.filename} (dataset '{dataset.name}' not in test datasets)"
+                    f"  🛡️  PROTECTING: {img.filename} (dataset '{dataset.name}' is production dataset)"
                 )
 
         test_images = final_test_images
 
-        # ABSOLUTE SAFETY CHECK: NEVER delete images from "Default Dataset" or "YOLO Dataset"
-        # This protects YOLO imports and any other production images
+        # ABSOLUTE SAFETY CHECK: NEVER delete images from "Default Dataset"
+        # This protects production images
         protected_images = []
 
         for img in test_images:
             dataset = db.query(Dataset).filter(Dataset.id == img.dataset_id).first()
             if dataset:
-                # ABSOLUTE PROTECTION: Never delete from "Default Dataset" or "YOLO Dataset"
-                if (
-                    dataset.name == "Default Dataset"
-                    or dataset.name == "YOLO Dataset"
-                    or dataset.name.startswith("YOLO Dataset")
-                ):
+                # ABSOLUTE PROTECTION: Never delete from "Default Dataset"
+                if dataset.name == "Default Dataset":
                     protected_images.append(img)
                     print(
                         f"  🛡️  PROTECTING production image: {img.filename} (in '{dataset.name}')"
-                    )
-                # Also protect images that are NOT in test datasets
-                elif img.dataset_id not in test_dataset_ids:
-                    protected_images.append(img)
-                    print(
-                        f"  🛡️  PROTECTING production image: {img.filename} (in '{dataset.name}', not in test dataset)"
                     )
 
         # If ANY images were protected, abort deletion to be safe
@@ -316,7 +307,7 @@ def cleanup_test_files():
             print("  ✅ No test images found - all images are production")
 
         # FINAL FINAL CHECK: Verify each image one more time before deletion
-        # Only delete images that are DEFINITELY in test datasets
+        # Only delete images that are DEFINITELY NOT in "Default Dataset"
         images_to_delete = []
         for img in test_images:
             dataset = db.query(Dataset).filter(Dataset.id == img.dataset_id).first()
@@ -324,32 +315,15 @@ def cleanup_test_files():
                 print(f"  ⚠️  Skipping image {img.id} - no dataset found")
                 continue
 
-            # ONLY delete if dataset name is EXACTLY "Test Dataset" or starts with "Test Dataset" or is exactly "test"
-            is_test_dataset = (
-                dataset.name == "Test Dataset"
-                or dataset.name.startswith("Test Dataset")
-                or dataset.name == "test"
-            )
-
-            # NEVER delete from production datasets
-            is_production_dataset = (
-                dataset.name == "Default Dataset"
-                or dataset.name == "YOLO Dataset"
-                or dataset.name.startswith("YOLO Dataset")
-            )
-
-            if is_production_dataset:
+            # NEVER delete from "Default Dataset" (production dataset)
+            if dataset.name == "Default Dataset":
                 print(
                     f"  🛡️  FINAL PROTECTION: {img.filename} in '{dataset.name}' - NOT DELETING"
                 )
                 continue
 
-            if is_test_dataset:
-                images_to_delete.append(img)
-            else:
-                print(
-                    f"  🛡️  PROTECTING: {img.filename} in '{dataset.name}' - not a test dataset"
-                )
+            # Delete all test files that match patterns and are not in Default Dataset
+            images_to_delete.append(img)
 
         test_images = images_to_delete
 
@@ -431,31 +405,25 @@ def cleanup_test_files():
 
                     for test_file in test_files:
                         filename = test_file.name
-                        # CRITICAL: Only delete if this file belongs to a test image we deleted
-                        # OR if it's an orphaned file (not in database) that matches test patterns
-                        # BUT first check if it exists in database - if so, protect it
+                        # Check if file matches test patterns - if so, delete it regardless of dataset
+                        # (unless it's explicitly in "Default Dataset" which is production)
                         existing_image = (
                             db.query(Image).filter(Image.filename == filename).first()
                         )
+                        dataset = None
 
                         if existing_image:
-                            # File exists in database - check if it's a test image
+                            # File exists in database - check if it should be protected
                             dataset = (
                                 db.query(Dataset)
                                 .filter(Dataset.id == existing_image.dataset_id)
                                 .first()
                             )
                             if dataset:
-                                # Only delete if it's in a test dataset
-                                is_test_dataset = (
-                                    dataset.name == "Test Dataset"
-                                    or dataset.name.startswith("Test Dataset")
-                                    or dataset.name == "test"
-                                )
+                                # Only protect files in "Default Dataset" (true production dataset)
+                                # Test files in "YOLO Dataset" should be deleted since they match test patterns
                                 is_production_dataset = (
                                     dataset.name == "Default Dataset"
-                                    or dataset.name == "YOLO Dataset"
-                                    or dataset.name.startswith("YOLO Dataset")
                                 )
 
                                 if is_production_dataset:
@@ -463,14 +431,22 @@ def cleanup_test_files():
                                         f"  🛡️  PROTECTING filesystem file: {filename} (in production dataset '{dataset.name}')"
                                     )
                                     continue
-                                elif not is_test_dataset:
-                                    print(
-                                        f"  🛡️  PROTECTING filesystem file: {filename} (in dataset '{dataset.name}', not test dataset)"
-                                    )
-                                    continue
+                                # For all other datasets, if file matches test patterns, delete it
+                                # This includes "YOLO Dataset" and "Test Dataset"
 
-                        # Safe to delete: either it's a test image we deleted, or it's an orphaned test file
-                        if filename in test_image_filenames or not existing_image:
+                        # Safe to delete: test files matching patterns (regardless of dataset unless Default Dataset)
+                        # OR orphaned test files (not in database)
+                        # Delete if: file was already deleted from DB, OR file doesn't exist in DB, OR file exists but not in Default Dataset
+                        should_delete = (
+                            filename in test_image_filenames
+                            or not existing_image
+                            or (
+                                existing_image
+                                and dataset
+                                and dataset.name != "Default Dataset"
+                            )
+                        )
+                        if should_delete:
                             try:
                                 print(f"Removing filesystem test file: {test_file}")
                                 os.remove(test_file)
@@ -501,6 +477,7 @@ def cleanup_test_files():
                             .filter(Image.filename == original_filename)
                             .first()
                         )
+                        dataset = None
 
                         if existing_image:
                             dataset = (
@@ -509,15 +486,10 @@ def cleanup_test_files():
                                 .first()
                             )
                             if dataset:
-                                is_test_dataset = (
-                                    dataset.name == "Test Dataset"
-                                    or dataset.name.startswith("Test Dataset")
-                                    or dataset.name == "test"
-                                )
+                                # Only protect thumbnails for images in "Default Dataset" (true production dataset)
+                                # Test thumbnails in "YOLO Dataset" should be deleted since they match test patterns
                                 is_production_dataset = (
                                     dataset.name == "Default Dataset"
-                                    or dataset.name == "YOLO Dataset"
-                                    or dataset.name.startswith("YOLO Dataset")
                                 )
 
                                 if is_production_dataset:
@@ -525,17 +497,22 @@ def cleanup_test_files():
                                         f"  🛡️  PROTECTING filesystem thumbnail: {filename} (image in production dataset '{dataset.name}')"
                                     )
                                     continue
-                                elif not is_test_dataset:
-                                    print(
-                                        f"  🛡️  PROTECTING filesystem thumbnail: {filename} (image in dataset '{dataset.name}', not test dataset)"
-                                    )
-                                    continue
+                                # For all other datasets, if thumbnail matches test patterns, delete it
+                                # This includes "YOLO Dataset" and "Test Dataset"
 
-                        # Safe to delete: either it's a test thumbnail we deleted, or it's orphaned
-                        if (
+                        # Safe to delete: test thumbnails matching patterns (regardless of dataset unless Default Dataset)
+                        # OR orphaned test thumbnails (not in database)
+                        # Delete if: thumbnail was already deleted from DB, OR thumbnail doesn't exist in DB, OR thumbnail exists but not in Default Dataset
+                        should_delete_thumbnail = (
                             original_filename in test_image_filenames
                             or not existing_image
-                        ):
+                            or (
+                                existing_image
+                                and dataset
+                                and dataset.name != "Default Dataset"
+                            )
+                        )
+                        if should_delete_thumbnail:
                             try:
                                 print(
                                     f"Removing filesystem test thumbnail: {test_file}"
@@ -560,6 +537,7 @@ def cleanup_test_categories():
 
     Only removes categories with specific test-related names:
     - "Test Category%" (pattern: matches "Test Category", "Test Category 1", etc.)
+    - "Consistency Test Category%" (pattern: matches "Consistency Test Category {uuid}")
     - "Test" (exact match)
     - "test" (exact match)
     - "Class1" (exact match - created by YOLO export tests)
@@ -579,7 +557,8 @@ def cleanup_test_categories():
         # Define test category names - ONLY these specific names will be deleted
         # This ensures production categories are never accidentally removed
         TEST_CATEGORY_NAMES = [
-            "Test Category%",  # Pattern match
+            "Test Category%",  # Pattern match (matches "Test Category", "Test Category 1", etc.)
+            "Consistency Test Category%",  # Pattern match (matches "Consistency Test Category {uuid}")
             "Test",  # Exact match
             "test",  # Exact match
             "Class1",  # Exact match (YOLO test category)
