@@ -130,11 +130,11 @@ class TestAPIContracts(unittest.TestCase):
         self.assertIsInstance(data["message"], str)
         self.assertIsInstance(data["category_id"], int)
 
-    def test_project_name_update_contract(self):
-        """Test project name update contract"""
+    def test_project_update_contract(self):
+        """Test project update contract"""
         # Test with non-existent project
         update_data = {"name": "New Name"}
-        response = self.client.put("/api/projects/99999/name", json=update_data)
+        response = self.client.put("/api/projects/99999", json=update_data)
         self.assertEqual(response.status_code, 404)
 
         data = response.json()
@@ -305,7 +305,7 @@ class TestAPIContracts(unittest.TestCase):
 
         # PUT endpoints should update resources
         put_endpoints = [
-            "/api/projects/99999/name",
+            "/api/projects/99999",
         ]
 
         for endpoint in put_endpoints:

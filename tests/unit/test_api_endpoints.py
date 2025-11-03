@@ -143,11 +143,12 @@ class TestAPIEndpoints(unittest.TestCase):
         self.assertIn("message", data)
         self.assertEqual(data["message"], "Label category created successfully")
 
-    def test_project_name_update_endpoint(self):
-        """Test project name update endpoint"""
+    def test_project_update_endpoint(self):
+        """Test project update endpoint"""
         # Configure mock database session
+        mock_project = MagicMock(id=1, name="Old Name")
         self.mock_db.query.return_value.filter.return_value.first.return_value = (
-            MagicMock(id=1)
+            mock_project
         )
 
         update_data = {"name": "Updated Project Name"}
@@ -159,8 +160,8 @@ class TestAPIEndpoints(unittest.TestCase):
         self.assertIn("message", data)
         self.assertEqual(data["message"], "Project updated successfully")
 
-    def test_project_name_update_not_found(self):
-        """Test project name update with non-existent project"""
+    def test_project_update_not_found(self):
+        """Test project update with non-existent project"""
         # Configure mock database session
         self.mock_db.query.return_value.filter.return_value.first.return_value = None
 

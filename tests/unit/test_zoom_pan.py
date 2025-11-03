@@ -1,5 +1,10 @@
 """
 Unit tests for zoom and pan functionality
+
+NOTE: These tests verify mathematical formulas used in frontend JavaScript code,
+not backend Python functions. The actual zoom/pan logic is implemented in
+templates/labeling.html as JavaScript functions. These tests serve as regression
+tests to ensure the math formulas remain correct.
 """
 
 import unittest
