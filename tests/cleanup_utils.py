@@ -32,10 +32,11 @@ def cleanup_test_files():
         # CRITICAL SAFETY: Only delete images that are in test datasets
         # This prevents deleting production images even if they match filename patterns
         from backend.database import Dataset
+        from sqlalchemy import and_, or_
 
         # Identify test datasets - ONLY match datasets that are clearly test datasets
         # CRITICAL: Be very strict to avoid matching production datasets
-        # EXCLUDE "Default Dataset" - this is the production dataset name
+        # EXCLUDE "Default Dataset" and "YOLO Dataset" - these are production dataset names
         # Only match:
         # 1. Exact name "Test Dataset" (the standard test dataset name)
         # 2. Datasets that start with "Test Dataset" (e.g., "Test Dataset 1")
@@ -45,6 +46,10 @@ def cleanup_test_files():
             .filter(
                 and_(
                     Dataset.name != "Default Dataset",  # NEVER match production dataset
+                    Dataset.name != "YOLO Dataset",  # NEVER match YOLO import datasets
+                    ~Dataset.name.like(
+                        "YOLO Dataset%"
+                    ),  # NEVER match YOLO import datasets
                     or_(
                         Dataset.name == "Test Dataset",  # Exact match
                         Dataset.name.like(
@@ -78,12 +83,6 @@ def cleanup_test_files():
             "persistence_test_",  # Must start with "persistence_test_"
             "test_workflow_",  # Must start with "test_workflow_"
         ]
-
-        # Build filter conditions for filename and original_filename
-        # CRITICAL: Only match if filename STARTS with test pattern AND has an extension
-        # SAFETY: Require BOTH filename AND original_filename to indicate test images
-        # This prevents deleting production images that happen to have "test" in their name
-        from sqlalchemy import and_, or_
 
         image_extensions = [".jpg", ".jpeg", ".png", ".bmp"]
 
@@ -166,17 +165,59 @@ def cleanup_test_files():
                     f"  {status}: {img.filename} (original: {img.original_filename}, ID: {img.id})"
                 )
 
-        # FINAL SAFETY CHECK: Remove any images from "Default Dataset" - this is production!
-        protected_images = []
+        # CRITICAL FINAL CHECK: Before deletion, verify EVERY image is actually in a test dataset
+        # This is the absolute last line of defense
+        final_test_images = []
         for img in test_images:
             dataset = db.query(Dataset).filter(Dataset.id == img.dataset_id).first()
-            if dataset and dataset.name == "Default Dataset":
-                protected_images.append(img)
+            if not dataset:
+                print(f"  ⚠️  Image {img.id} has no dataset - skipping")
+                continue
+
+            # Only include if dataset is actually in our test datasets list
+            if dataset.id in test_dataset_ids:
+                final_test_images.append(img)
+            else:
                 print(
-                    f"  🛡️  PROTECTING production image: {img.filename} (in 'Default Dataset')"
+                    f"  🛡️  PROTECTING: {img.filename} (dataset '{dataset.name}' not in test datasets)"
                 )
 
-        # Remove protected images from deletion list
+        test_images = final_test_images
+
+        # ABSOLUTE SAFETY CHECK: NEVER delete images from "Default Dataset" or "YOLO Dataset"
+        # This protects YOLO imports and any other production images
+        protected_images = []
+
+        for img in test_images:
+            dataset = db.query(Dataset).filter(Dataset.id == img.dataset_id).first()
+            if dataset:
+                # ABSOLUTE PROTECTION: Never delete from "Default Dataset" or "YOLO Dataset"
+                if (
+                    dataset.name == "Default Dataset"
+                    or dataset.name == "YOLO Dataset"
+                    or dataset.name.startswith("YOLO Dataset")
+                ):
+                    protected_images.append(img)
+                    print(
+                        f"  🛡️  PROTECTING production image: {img.filename} (in '{dataset.name}')"
+                    )
+                # Also protect images that are NOT in test datasets
+                elif img.dataset_id not in test_dataset_ids:
+                    protected_images.append(img)
+                    print(
+                        f"  🛡️  PROTECTING production image: {img.filename} (in '{dataset.name}', not in test dataset)"
+                    )
+
+        # If ANY images were protected, abort deletion to be safe
+        if protected_images:
+            print(
+                f"\n❌ ABORTING DELETION: Found {len(protected_images)} production image(s) that matched test patterns"
+            )
+            print("   This prevents accidental deletion of production data")
+            print("   No images will be deleted")
+            return 0
+
+        # Remove protected images from deletion list (should be empty now due to abort above)
         test_images = [img for img in test_images if img not in protected_images]
 
         # Show what will be deleted
