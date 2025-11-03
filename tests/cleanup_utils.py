@@ -1,5 +1,8 @@
 """
 Test cleanup utilities for removing test artifacts
+
+This module ensures that only test-generated images and annotations are cleaned up,
+while protecting all production data including YOLO-imported images and model-generated annotations.
 """
 
 import os
@@ -730,6 +733,99 @@ def cleanup_test_categories():
         db.close()
 
 
+def cleanup_test_projects():
+    """Remove test projects from the database.
+
+    Only removes projects with specific test-related names:
+    - "YOLO Test Project" (exact match)
+    - "Test Project" (exact match)
+    - "Performance Test Project" (exact match)
+    - Any project name containing "Test" that was created during tests
+
+    Production projects (e.g., "Default Project", user-created projects)
+    are NOT affected by this cleanup.
+    """
+    try:
+        from backend.database import SessionLocal, Project
+    except ModuleNotFoundError as e:
+        print(f"⚠️  Warning: Cannot import database modules for cleanup: {e}")
+        return 0
+
+    db = SessionLocal()
+    try:
+        # Define test project names - ONLY these specific names will be deleted
+        # This ensures production projects are never accidentally removed
+        TEST_PROJECT_NAMES = [
+            "YOLO Test Project",  # Exact match
+            "Test Project",  # Exact match
+            "Performance Test Project",  # Exact match
+        ]
+
+        # Find test projects using specific test names only
+        from sqlalchemy import or_
+
+        filters = [Project.name == name for name in TEST_PROJECT_NAMES]
+        test_projects = db.query(Project).filter(or_(*filters)).all()
+
+        # Show all projects before cleanup for verification
+        all_projects = db.query(Project).all()
+        if all_projects:
+            print(f"\n📊 Current projects in database ({len(all_projects)} total):")
+            for proj in all_projects:
+                is_test = proj in test_projects
+                status = (
+                    "🗑️  TEST (will be deleted)"
+                    if is_test
+                    else "✅ PRODUCTION (preserved)"
+                )
+                print(
+                    f"  {status}: {proj.name} (ID: {proj.id}, updated: {proj.updated_at})"
+                )
+
+        if not test_projects:
+            print(
+                "\n✅ No test projects found to clean up - all projects are production"
+            )
+            return 0
+
+        print(f"\n🗑️  Found {len(test_projects)} test project(s) to clean up:")
+        for proj in test_projects:
+            print(f"  - {proj.name} (ID: {proj.id})")
+
+        # Get project IDs
+        project_ids = [proj.id for proj in test_projects]
+
+        # Delete the projects (cascading deletes will handle datasets, images, etc.)
+        deleted = (
+            db.query(Project)
+            .filter(Project.id.in_(project_ids))
+            .delete(synchronize_session=False)
+        )
+
+        db.commit()
+        print(f"\n✅ Deleted {deleted} test project(s)")
+
+        # Show remaining production projects
+        remaining_projects = db.query(Project).all()
+        if remaining_projects:
+            print(f"\n✅ Preserved {len(remaining_projects)} production project(s):")
+            for proj in remaining_projects:
+                print(f"  - {proj.name} (ID: {proj.id})")
+        else:
+            print("\nℹ️  No projects remain in database")
+
+        return deleted
+    except Exception as e:
+        db.rollback()
+        print(f"❌ Error cleaning test projects: {e}")
+        import traceback
+
+        traceback.print_exc()
+        raise
+    finally:
+        db.close()
+
+
 def cleanup_all():
     """Clean up all test artifacts.
 
@@ -741,11 +837,13 @@ def cleanup_all():
     try:
         files_removed = cleanup_test_files()
         categories_removed = cleanup_test_categories()
+        projects_removed = cleanup_test_projects()
 
         print(f"✅ Removed {files_removed} test files")
         print(f"✅ Removed {categories_removed} test categories")
+        print(f"✅ Removed {projects_removed} test projects")
 
-        return files_removed + categories_removed
+        return files_removed + categories_removed + projects_removed
     except Exception as e:
         print(f"⚠️  Warning: Cleanup encountered errors: {e}")
         return 0
