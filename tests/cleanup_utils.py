@@ -38,34 +38,58 @@ def cleanup_test_files():
 
         # Build filter conditions for filename and original_filename
         # CRITICAL: Only match if filename STARTS with test pattern AND has an extension
-        # This prevents matching partial names or files without extensions
-        filters = []
+        # SAFETY: Require BOTH filename AND original_filename to indicate test images
+        # This prevents deleting production images that happen to have "test" in their name
+        from sqlalchemy import and_, or_
+
         image_extensions = [".jpg", ".jpeg", ".png", ".bmp"]
 
+        # Build filters that require BOTH filename AND original_filename to indicate test images
+        # An image is a test image if:
+        # 1. filename matches test pattern AND original_filename matches test pattern, OR
+        # 2. filename matches test pattern AND original_filename is exact test name, OR
+        # 3. Both filename and original_filename are exact test names
+        filters = []
+
+        # Pattern-based matches (e.g., test_abc123.jpg with test_xyz.jpg)
         for pattern in test_patterns:
-            # Match files that start with the pattern followed by any characters and then an extension
-            # Pattern: "test_%" matches anything starting with "test_"
-            # But we require it to have one of our extensions at the end
             for ext in image_extensions:
-                # Match: test_something.jpg, test_123.jpg, etc.
-                # BUT also match test_something_abc123.jpg (the unique ID format)
                 pattern_with_ext = f"{pattern}%{ext}"
-                filters.append(Image.filename.like(pattern_with_ext))
-                filters.append(Image.original_filename.like(pattern_with_ext))
+                # Both filename and original_filename match the pattern
+                filters.append(
+                    and_(
+                        Image.filename.like(pattern_with_ext),
+                        Image.original_filename.like(pattern_with_ext),
+                    )
+                )
 
-        # Also match exact test filenames (without UUID suffix)
+        # Handle cases where filename has UUID but original_filename is exact test name
+        # (e.g., filename="test_abc123.jpg", original_filename="test.jpg")
         test_exact_names = ["test.jpg", "ui_test.jpg", "test.png", "ui_test.png"]
-        for name in test_exact_names:
-            filters.append(Image.filename == name)
-            filters.append(Image.original_filename == name)
+        for pattern in test_patterns:
+            for ext in image_extensions:
+                pattern_with_ext = f"{pattern}%{ext}"
+                for exact_name in test_exact_names:
+                    # filename matches pattern AND original_filename is exact test name
+                    filters.append(
+                        and_(
+                            Image.filename.like(pattern_with_ext),
+                            Image.original_filename == exact_name,
+                        )
+                    )
 
-        from sqlalchemy import or_
+        # Also match exact test filenames (require BOTH to match exactly)
+        for name in test_exact_names:
+            filters.append(
+                and_(Image.filename == name, Image.original_filename == name)
+            )
 
         # Safety check: If no filters defined, don't delete anything
         if not filters:
             print("⚠️  WARNING: No test image filters defined - skipping cleanup")
             test_images = []
         else:
+            # Match if ANY of the filters match (but each filter requires BOTH fields)
             test_images_query = db.query(Image).filter(or_(*filters))
             test_images = test_images_query.all()
 
@@ -298,7 +322,11 @@ def cleanup_test_categories():
 
 
 def cleanup_all():
-    """Clean up all test artifacts"""
+    """Clean up all test artifacts.
+
+    Only deletes images where BOTH filename AND original_filename match test patterns.
+    This ensures production images are never accidentally deleted.
+    """
     print("🧹 Cleaning up test artifacts...")
 
     try:
