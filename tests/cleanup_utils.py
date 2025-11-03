@@ -73,6 +73,78 @@ def cleanup_test_files():
             f"📋 Found {len(test_datasets)} test dataset(s): {[ds.name for ds in test_datasets]}"
         )
 
+        # GLOBAL SAFETY CHECK FIRST: Check ALL images in production datasets BEFORE querying
+        # If ANY production images match test patterns, abort entirely - don't even query
+        all_production_datasets = (
+            db.query(Dataset)
+            .filter(
+                or_(
+                    Dataset.name == "Default Dataset",
+                    Dataset.name == "YOLO Dataset",
+                    Dataset.name.like("YOLO Dataset%"),
+                )
+            )
+            .all()
+        )
+
+        if all_production_datasets:
+            production_dataset_ids = [ds.id for ds in all_production_datasets]
+            production_images = (
+                db.query(Image)
+                .filter(Image.dataset_id.in_(production_dataset_ids))
+                .all()
+            )
+
+            # Define test patterns for checking
+            test_patterns_for_check = [
+                "test_",
+                "ui_test_",
+                "concurrent_",
+                "persistence_test_",
+                "test_workflow_",
+            ]
+            test_exact_names = ["test.jpg", "ui_test.jpg", "test.png", "ui_test.png"]
+
+            # Check if any production images match test filename patterns
+            production_test_matches = []
+            for img in production_images:
+                matches_pattern = False
+                # Check if filename starts with test pattern
+                for pattern in test_patterns_for_check:
+                    if img.filename.startswith(
+                        pattern
+                    ) or img.original_filename.startswith(pattern):
+                        matches_pattern = True
+                        break
+
+                # Check exact test names
+                if not matches_pattern:
+                    if (
+                        img.filename in test_exact_names
+                        or img.original_filename in test_exact_names
+                    ):
+                        matches_pattern = True
+
+                if matches_pattern:
+                    dataset = (
+                        db.query(Dataset).filter(Dataset.id == img.dataset_id).first()
+                    )
+                    production_test_matches.append(
+                        (img, dataset.name if dataset else "unknown")
+                    )
+
+            if production_test_matches:
+                print(
+                    f"\n❌ CRITICAL: Found {len(production_test_matches)} production image(s) matching test patterns:"
+                )
+                for img, ds_name in production_test_matches:
+                    print(
+                        f"  - {img.filename} (original: {img.original_filename}) in '{ds_name}'"
+                    )
+                print("\n🛡️  ABORTING DELETION to protect production data")
+                print("   No images will be deleted")
+                return 0
+
         # Remove test images from database first
         # IMPORTANT: Only match files that START with these test prefixes and have image extensions
         # This prevents accidentally matching user files that might contain "test" in the name
@@ -166,7 +238,7 @@ def cleanup_test_files():
                 )
 
         # CRITICAL FINAL CHECK: Before deletion, verify EVERY image is actually in a test dataset
-        # This is the absolute last line of defense
+        # This is the absolute last line of defense - filter out any images not in test datasets
         final_test_images = []
         for img in test_images:
             dataset = db.query(Dataset).filter(Dataset.id == img.dataset_id).first()
@@ -233,6 +305,44 @@ def cleanup_test_files():
                 )
         else:
             print("  ✅ No test images found - all images are production")
+
+        # FINAL FINAL CHECK: Verify each image one more time before deletion
+        # Only delete images that are DEFINITELY in test datasets
+        images_to_delete = []
+        for img in test_images:
+            dataset = db.query(Dataset).filter(Dataset.id == img.dataset_id).first()
+            if not dataset:
+                print(f"  ⚠️  Skipping image {img.id} - no dataset found")
+                continue
+
+            # ONLY delete if dataset name is EXACTLY "Test Dataset" or starts with "Test Dataset" or is exactly "test"
+            is_test_dataset = (
+                dataset.name == "Test Dataset"
+                or dataset.name.startswith("Test Dataset")
+                or dataset.name == "test"
+            )
+
+            # NEVER delete from production datasets
+            is_production_dataset = (
+                dataset.name == "Default Dataset"
+                or dataset.name == "YOLO Dataset"
+                or dataset.name.startswith("YOLO Dataset")
+            )
+
+            if is_production_dataset:
+                print(
+                    f"  🛡️  FINAL PROTECTION: {img.filename} in '{dataset.name}' - NOT DELETING"
+                )
+                continue
+
+            if is_test_dataset:
+                images_to_delete.append(img)
+            else:
+                print(
+                    f"  🛡️  PROTECTING: {img.filename} in '{dataset.name}' - not a test dataset"
+                )
+
+        test_images = images_to_delete
 
         # Delete annotations for these test images
         if test_images:
