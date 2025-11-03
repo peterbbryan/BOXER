@@ -25,6 +25,36 @@ def cleanup_test_files():
     # Get database session to track and delete test images from DB
     db = SessionLocal()
     try:
+        # CRITICAL SAFETY: Only delete images that are in test datasets
+        # This prevents deleting production images even if they match filename patterns
+        from backend.database import Dataset
+
+        # Identify test datasets (datasets with names that indicate they're for testing)
+        test_dataset_patterns = ["Test Dataset", "test", "Test"]
+        test_datasets = (
+            db.query(Dataset)
+            .filter(
+                or_(
+                    *[
+                        Dataset.name.like(f"%{pattern}%")
+                        for pattern in test_dataset_patterns
+                    ]
+                )
+            )
+            .all()
+        )
+
+        if not test_datasets:
+            print(
+                "⚠️  No test datasets found - skipping image cleanup to protect production data"
+            )
+            return 0
+
+        test_dataset_ids = [ds.id for ds in test_datasets]
+        print(
+            f"📋 Found {len(test_datasets)} test dataset(s): {[ds.name for ds in test_datasets]}"
+        )
+
         # Remove test images from database first
         # IMPORTANT: Only match files that START with these test prefixes and have image extensions
         # This prevents accidentally matching user files that might contain "test" in the name
@@ -44,20 +74,26 @@ def cleanup_test_files():
 
         image_extensions = [".jpg", ".jpeg", ".png", ".bmp"]
 
-        # Build filters that require BOTH filename AND original_filename to indicate test images
+        # Build filters that require:
+        # 1. Image is in a test dataset (CRITICAL SAFETY CHECK)
+        # 2. BOTH filename AND original_filename indicate test images
         # An image is a test image if:
-        # 1. filename matches test pattern AND original_filename matches test pattern, OR
-        # 2. filename matches test pattern AND original_filename is exact test name, OR
-        # 3. Both filename and original_filename are exact test names
+        # - It's in a test dataset AND
+        # - (filename matches test pattern AND original_filename matches test pattern, OR
+        #    filename matches test pattern AND original_filename is exact test name, OR
+        #    both filename and original_filename are exact test names)
         filters = []
 
         # Pattern-based matches (e.g., test_abc123.jpg with test_xyz.jpg)
         for pattern in test_patterns:
             for ext in image_extensions:
                 pattern_with_ext = f"{pattern}%{ext}"
-                # Both filename and original_filename match the pattern
+                # Both filename and original_filename match the pattern AND image is in test dataset
                 filters.append(
                     and_(
+                        Image.dataset_id.in_(
+                            test_dataset_ids
+                        ),  # CRITICAL: Must be in test dataset
                         Image.filename.like(pattern_with_ext),
                         Image.original_filename.like(pattern_with_ext),
                     )
@@ -70,18 +106,27 @@ def cleanup_test_files():
             for ext in image_extensions:
                 pattern_with_ext = f"{pattern}%{ext}"
                 for exact_name in test_exact_names:
-                    # filename matches pattern AND original_filename is exact test name
+                    # filename matches pattern AND original_filename is exact test name AND in test dataset
                     filters.append(
                         and_(
+                            Image.dataset_id.in_(
+                                test_dataset_ids
+                            ),  # CRITICAL: Must be in test dataset
                             Image.filename.like(pattern_with_ext),
                             Image.original_filename == exact_name,
                         )
                     )
 
-        # Also match exact test filenames (require BOTH to match exactly)
+        # Also match exact test filenames (require BOTH to match exactly AND be in test dataset)
         for name in test_exact_names:
             filters.append(
-                and_(Image.filename == name, Image.original_filename == name)
+                and_(
+                    Image.dataset_id.in_(
+                        test_dataset_ids
+                    ),  # CRITICAL: Must be in test dataset
+                    Image.filename == name,
+                    Image.original_filename == name,
+                )
             )
 
         # Safety check: If no filters defined, don't delete anything
@@ -108,37 +153,16 @@ def cleanup_test_files():
                     f"  {status}: {img.filename} (original: {img.original_filename}, ID: {img.id})"
                 )
 
-        # Additional safety check: Only delete images where original_filename indicates it's a test image
-        # This prevents deleting production images that happen to match test filename patterns
-        test_exact_names = ["test.jpg", "ui_test.jpg", "test.png", "ui_test.png"]
-        confirmed_test_images = []
-
-        for img in test_images:
-            # An image is confirmed as a test image if its original_filename:
-            # 1. Starts with a test prefix pattern (e.g., "test_", "ui_test_", etc.), OR
-            # 2. Is an exact test name (e.g., "test.jpg", "ui_test.jpg")
-            original_filename = img.original_filename
-            starts_with_test_prefix = any(
-                original_filename.startswith(pattern) for pattern in test_patterns
-            )
-            is_exact_test_name = original_filename in test_exact_names
-
-            if starts_with_test_prefix or is_exact_test_name:
-                confirmed_test_images.append(img)
-            else:
-                # This image matched test patterns but original_filename doesn't indicate it's a test
-                # This could be a production image that happens to match, so skip it
-                print(
-                    f"  ⚠️  Skipping suspicious match: {img.filename} (original: {img.original_filename})"
-                )
-
-        test_images = confirmed_test_images
-
-        print(f"\n🗑️  Found {len(test_images)} confirmed test images to clean up")
+        # Show what will be deleted
+        print(
+            f"\n🗑️  Found {len(test_images)} test images in test datasets to clean up"
+        )
         if test_images:
             for img in test_images:
+                dataset = db.query(Dataset).filter(Dataset.id == img.dataset_id).first()
+                dataset_name = dataset.name if dataset else "unknown"
                 print(
-                    f"  - {img.filename} (original: {img.original_filename}, ID: {img.id})"
+                    f"  - {img.filename} (original: {img.original_filename}, dataset: '{dataset_name}', ID: {img.id})"
                 )
         else:
             print("  ✅ No test images found - all images are production")
