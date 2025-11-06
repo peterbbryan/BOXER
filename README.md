@@ -6,11 +6,13 @@
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Status](https://img.shields.io/badge/status-active-success.svg)
 
-**A powerful, web-based image annotation tool designed for creating high-quality training data for computer vision models. Built with a focus on simplicity, performance, and ease of use.**
+**Be warned, 100% vibe coded! A powerful, web-based image annotation tool designed for creating high-quality training data for computer vision models. Built with a focus on simplicity, performance, and ease of use.**
 
 [Features](#-features) • [Installation](#-installation) • [Usage](#-usage) • [API Reference](#-api-reference) • [Contributing](#-contributing)
 
 </div>
+
+![demo](https://github.com/user-attachments/assets/4676f437-ecbd-41d6-9003-d9f1c745dd4e)
 
 ---
 
