@@ -117,18 +117,18 @@ class AnnotationUpdate(BaseModel):
 
 
 @app.get("/", response_class=HTMLResponse)
-async def read_root(request: Request) -> HTMLResponse:
+async def read_root(request: Request, db: Session = Depends(get_db)) -> HTMLResponse:
     """Serve the main labeling interface.
 
     Args:
         request: FastAPI request object.
+        db: Database session dependency.
 
     Returns:
         HTMLResponse: Rendered labeling interface template with project,
         dataset, images, and label categories data.
     """
     # Get or create a default project and dataset
-    db = next(get_db())
     try:
         # Get the most recent project or create a default one
         project = db.query(Project).order_by(Project.updated_at.desc()).first()
@@ -209,7 +209,7 @@ async def read_root(request: Request) -> HTMLResponse:
             },
         )
     finally:
-        db.close()
+        pass  # Database session is managed by FastAPI dependency
 
 
 # API Endpoints

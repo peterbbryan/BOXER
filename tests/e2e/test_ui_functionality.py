@@ -9,14 +9,15 @@ from fastapi.testclient import TestClient
 from PIL import Image
 
 from backend.main import app
+from tests.test_base import DatabaseTestCase
 
 
-class TestUIFunctionality(unittest.TestCase):
+class TestUIFunctionality(DatabaseTestCase):
     """Test UI functionality end-to-end"""
 
     def setUp(self):
         """Set up test fixtures"""
-        self.client = TestClient(app)
+        super().setUp()
         self.temp_dir = tempfile.mkdtemp()
 
     def tearDown(self):
