@@ -201,7 +201,6 @@ BOXER/
 │   └── image_utils.py        # Image processing utilities
 ├── templates/                # HTML templates
 │   ├── labeling.html         # Main annotation interface
-│   ├── dashboard.html        # Dashboard view
 │   └── base.html             # Base template
 ├── tests/                    # Test suite
 │   ├── unit/                 # Unit tests

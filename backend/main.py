@@ -11,7 +11,6 @@ import zipfile
 from datetime import datetime
 from typing import Any, Dict, Optional, Tuple
 
-import uvicorn
 from PIL import Image as PILImage
 from fastapi import Depends, FastAPI, Form, HTTPException, Request, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
@@ -1646,7 +1645,3 @@ async def clear_all_data(  # pylint: disable=too-many-locals
         raise HTTPException(
             status_code=500, detail=f"Error clearing data: {str(e)}"
         ) from e
-
-
-if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True, log_level="info")
