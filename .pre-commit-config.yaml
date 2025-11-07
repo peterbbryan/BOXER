@@ -10,15 +10,14 @@ repos:
     hooks:
       - id: pylint
         name: pylint
-        entry: venv/bin/pylint
+        entry: bash -c 'cd "$(git rev-parse --show-toplevel)" && ./venv/bin/pylint --rcfile=pylintrc --fail-under=10 backend/'
         language: system
-        args: [--rcfile=pylintrc, --fail-under=10, backend/]
         files: ^backend/.*\.py$
         pass_filenames: false
 
       - id: tests
         name: run-all-tests
-        entry: bash -c 'cd tests && python run_tests.py'
+        entry: bash -c 'cd "$(git rev-parse --show-toplevel)" && ./venv/bin/python tests/run_tests.py'
         language: system
         files: ^(backend/.*\.py|templates/.*\.html|tests/.*\.py)$
         pass_filenames: false

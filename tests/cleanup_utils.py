@@ -358,10 +358,18 @@ def cleanup_test_files():
             print("\nℹ️  No images remain in database")
     except Exception as e:
         db.rollback()
-        print(f"Error cleaning test images from database: {e}")
-        import traceback
+        # Handle expected cases gracefully (database doesn't exist, tables don't exist)
+        error_str = str(e)
+        if "no such table" in error_str.lower() or "no such file" in error_str.lower():
+            # Database or tables don't exist - this is expected for fresh installs or in-memory test databases
+            # Silently skip cleanup
+            pass
+        else:
+            # Unexpected error - log it
+            print(f"⚠️  Warning: Error cleaning test images from database: {e}")
+            import traceback
 
-        traceback.print_exc()
+            traceback.print_exc()
     finally:
         db.close()
 
@@ -522,10 +530,18 @@ def cleanup_test_files():
                             except OSError as e:
                                 print(f"Warning: Could not remove {test_file}: {e}")
     except Exception as e:
-        print(f"⚠️  Warning: Error during filesystem cleanup: {e}")
-        import traceback
+        # Handle expected cases gracefully (database doesn't exist, tables don't exist)
+        error_str = str(e)
+        if "no such table" in error_str.lower() or "no such file" in error_str.lower():
+            # Database or tables don't exist - this is expected for fresh installs or in-memory test databases
+            # Silently skip cleanup
+            pass
+        else:
+            # Unexpected error - log it
+            print(f"⚠️  Warning: Error during filesystem cleanup: {e}")
+            import traceback
 
-        traceback.print_exc()
+            traceback.print_exc()
     finally:
         db.close()
 
@@ -706,11 +722,19 @@ def cleanup_test_categories():
         return deleted
     except Exception as e:
         db.rollback()
-        print(f"❌ Error cleaning test categories: {e}")
-        import traceback
+        # Handle expected cases gracefully (database doesn't exist, tables don't exist)
+        error_str = str(e)
+        if "no such table" in error_str.lower() or "no such file" in error_str.lower():
+            # Database or tables don't exist - this is expected for fresh installs or in-memory test databases
+            # Silently skip cleanup
+            return 0
+        else:
+            # Unexpected error - log it and re-raise
+            print(f"❌ Error cleaning test categories: {e}")
+            import traceback
 
-        traceback.print_exc()
-        raise
+            traceback.print_exc()
+            raise
     finally:
         db.close()
 
@@ -800,11 +824,19 @@ def cleanup_test_projects():
         return deleted
     except Exception as e:
         db.rollback()
-        print(f"❌ Error cleaning test projects: {e}")
-        import traceback
+        # Handle expected cases gracefully (database doesn't exist, tables don't exist)
+        error_str = str(e)
+        if "no such table" in error_str.lower() or "no such file" in error_str.lower():
+            # Database or tables don't exist - this is expected for fresh installs or in-memory test databases
+            # Silently skip cleanup
+            return 0
+        else:
+            # Unexpected error - log it and re-raise
+            print(f"❌ Error cleaning test projects: {e}")
+            import traceback
 
-        traceback.print_exc()
-        raise
+            traceback.print_exc()
+            raise
     finally:
         db.close()
 

@@ -8,14 +8,15 @@ from unittest import TestCase
 
 from fastapi.testclient import TestClient
 from backend.main import app
+from tests.test_base import DatabaseTestCase
 
 
-class TestYOLOExportAPI(TestCase):
+class TestYOLOExportAPI(DatabaseTestCase):
     """Integration tests for YOLO export endpoint."""
 
     def setUp(self):
         """Set up test client."""
-        self.client = TestClient(app)
+        super().setUp()
 
     def test_export_yolo_handles_empty_result(self):
         """Test that export handles the case gracefully."""

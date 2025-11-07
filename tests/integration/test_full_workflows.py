@@ -9,14 +9,15 @@ from fastapi.testclient import TestClient
 from PIL import Image
 
 from backend.main import app
+from tests.test_base import DatabaseTestCase
 
 
-class TestFullWorkflows(unittest.TestCase):
+class TestFullWorkflows(DatabaseTestCase):
     """Test complete workflows from start to finish"""
 
     def setUp(self):
         """Set up test fixtures"""
-        self.client = TestClient(app)
+        super().setUp()
         self.temp_dir = tempfile.mkdtemp()
 
         # Create test directories
@@ -47,7 +48,7 @@ class TestFullWorkflows(unittest.TestCase):
         # Step 2: Upload the image
         with open(test_image_path, "rb") as f:
             files = {"file": ("test_workflow.jpg", f, "image/jpeg")}
-            data = {"dataset_id": 1}
+            data = {"dataset_id": self.test_dataset_id}
             response = self.client.post("/api/images/upload", files=files, data=data)
 
         self.assertEqual(response.status_code, 200)
@@ -58,7 +59,7 @@ class TestFullWorkflows(unittest.TestCase):
         # Step 3: Create a bounding box annotation
         bbox_annotation = {
             "image_id": image_id,
-            "label_category_id": 1,
+            "label_category_id": self.test_category_id,
             "annotation_data": {
                 "tool": "bbox",
                 "coordinates": {"startX": 100, "startY": 100, "endX": 300, "endY": 200},
@@ -75,7 +76,7 @@ class TestFullWorkflows(unittest.TestCase):
         # Step 4: Create a point annotation
         point_annotation = {
             "image_id": image_id,
-            "label_category_id": 1,
+            "label_category_id": self.test_category_id,
             "annotation_data": {
                 "tool": "point",
                 "coordinates": {"startX": 150, "startY": 150},
@@ -92,7 +93,7 @@ class TestFullWorkflows(unittest.TestCase):
         # Step 5: Create a polygon annotation
         polygon_annotation = {
             "image_id": image_id,
-            "label_category_id": 1,
+            "label_category_id": self.test_category_id,
             "annotation_data": {
                 "tool": "polygon",
                 "coordinates": {
@@ -196,7 +197,7 @@ class TestFullWorkflows(unittest.TestCase):
                         f"image/{format_name.lower() if format_name != 'JPEG' else 'jpeg'}",
                     )
                 }
-                data = {"dataset_id": 1}
+                data = {"dataset_id": self.test_dataset_id}
                 response = self.client.post(
                     "/api/images/upload", files=files, data=data
                 )
@@ -213,7 +214,7 @@ class TestFullWorkflows(unittest.TestCase):
         for image_id in uploaded_images:
             annotation = {
                 "image_id": image_id,
-                "label_category_id": 1,
+                "label_category_id": self.test_category_id,
                 "annotation_data": {
                     "tool": "bbox",
                     "coordinates": {
@@ -298,7 +299,7 @@ class TestFullWorkflows(unittest.TestCase):
         for i, image_path in enumerate(test_images):
             with open(image_path, "rb") as f:
                 files = {"file": (f"concurrent_{i}.jpg", f, "image/jpeg")}
-                data = {"dataset_id": 1}
+                data = {"dataset_id": self.test_dataset_id}
                 response = self.client.post(
                     "/api/images/upload", files=files, data=data
                 )
@@ -311,7 +312,7 @@ class TestFullWorkflows(unittest.TestCase):
         for i, image_id in enumerate(uploaded_images):
             annotation = {
                 "image_id": image_id,
-                "label_category_id": 1,
+                "label_category_id": self.test_category_id,
                 "annotation_data": {
                     "tool": "bbox",
                     "coordinates": {

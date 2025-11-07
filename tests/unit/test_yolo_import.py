@@ -4,6 +4,7 @@ import unittest
 from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
 from backend.main import app
+from backend.database import get_db
 
 
 class TestYOLOImport(unittest.TestCase):
@@ -13,20 +14,35 @@ class TestYOLOImport(unittest.TestCase):
         """Set up test client."""
         self.client = TestClient(app)
 
+    def tearDown(self):
+        """Clean up after tests."""
+        app.dependency_overrides.clear()
+
     def test_import_yolo_classes_success(self):
         """Test successful import of YOLO classes - basic validation only."""
         # This test just validates the endpoint exists and handles basic validation
         # The actual success case is tested in integration tests
+        # Override database dependency to avoid real database access
+        mock_db = MagicMock()
+        mock_project = MagicMock()
+        mock_project.id = 1
+        mock_db.query.return_value.filter.return_value.first.return_value = mock_project
+
+        def override_get_db():
+            yield mock_db
+
+        app.dependency_overrides[get_db] = override_get_db
+
         classes_content = "person\ncar\ntruck\nbicycle"
 
-        # Test the endpoint (will fail due to no database, but we can check the error)
+        # Test the endpoint
         response = self.client.post(
             "/api/import/yolo-classes",
             files={"file": ("classes.txt", classes_content, "text/plain")},
             data={"project_id": 1},
         )
 
-        # Should fail due to database connection, but endpoint should exist
+        # Should succeed with mocked database
         self.assertIn(
             response.status_code, [200, 500]
         )  # Either success or database error
@@ -35,7 +51,11 @@ class TestYOLOImport(unittest.TestCase):
     def test_import_yolo_classes_invalid_file_type(self, mock_get_db):
         """Test import with invalid file type."""
         mock_db = MagicMock()
-        mock_get_db.return_value = mock_db
+
+        def override_get_db():
+            yield mock_db
+
+        app.dependency_overrides[get_db] = override_get_db
 
         # Test with non-txt file
         response = self.client.post(
@@ -51,7 +71,11 @@ class TestYOLOImport(unittest.TestCase):
     def test_import_yolo_classes_invalid_encoding(self, mock_get_db):
         """Test import with invalid file encoding."""
         mock_db = MagicMock()
-        mock_get_db.return_value = mock_db
+
+        def override_get_db():
+            yield mock_db
+
+        app.dependency_overrides[get_db] = override_get_db
 
         # Test with invalid UTF-8 content
         invalid_content = b"\xff\xfe\x00\x00"  # Invalid UTF-8
@@ -69,7 +93,11 @@ class TestYOLOImport(unittest.TestCase):
     def test_import_yolo_classes_empty_file(self, mock_get_db):
         """Test import with empty file."""
         mock_db = MagicMock()
-        mock_get_db.return_value = mock_db
+
+        def override_get_db():
+            yield mock_db
+
+        app.dependency_overrides[get_db] = override_get_db
 
         response = self.client.post(
             "/api/import/yolo-classes",
@@ -84,7 +112,11 @@ class TestYOLOImport(unittest.TestCase):
     def test_import_yolo_classes_project_not_found(self, mock_get_db):
         """Test import with non-existent project."""
         mock_db = MagicMock()
-        mock_get_db.return_value = mock_db
+
+        def override_get_db():
+            yield mock_db
+
+        app.dependency_overrides[get_db] = override_get_db
 
         # Mock project not found
         mock_db.query.return_value.filter.return_value.first.return_value = None
@@ -106,7 +138,11 @@ class TestYOLOImport(unittest.TestCase):
         # This test is complex to mock properly, so we'll just test basic functionality
         # The actual duplicate handling is tested in integration tests
         mock_db = MagicMock()
-        mock_get_db.return_value = mock_db
+
+        def override_get_db():
+            yield mock_db
+
+        app.dependency_overrides[get_db] = override_get_db
 
         # Mock project exists
         mock_project = MagicMock()

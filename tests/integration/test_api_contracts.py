@@ -7,14 +7,15 @@ import uuid
 from fastapi.testclient import TestClient
 
 from backend.main import app
+from tests.test_base import DatabaseTestCase
 
 
-class TestAPIContracts(unittest.TestCase):
+class TestAPIContracts(DatabaseTestCase):
     """Test API contracts and response schemas"""
 
     def setUp(self):
         """Set up test fixtures"""
-        self.client = TestClient(app)
+        super().setUp()
 
     def test_health_endpoint_contract(self):
         """Test health endpoint contract"""
@@ -117,9 +118,15 @@ class TestAPIContracts(unittest.TestCase):
     def test_label_categories_endpoint_contract(self):
         """Test label categories endpoint contract"""
         # Test POST endpoint (only available endpoint)
+        # Use unique name since base class creates "Test Category"
+        unique_name = f"Contract Test Category {uuid.uuid4().hex[:8]}"
         response = self.client.post(
             "/api/label-categories",
-            json={"name": "Test Category", "color": "#FF0000", "project_id": 1},
+            json={
+                "name": unique_name,
+                "color": "#FF0000",
+                "project_id": self.test_project_id,
+            },
         )
         self.assertEqual(response.status_code, 200)
 
@@ -148,7 +155,7 @@ class TestAPIContracts(unittest.TestCase):
         """Test image upload contract"""
         # Test with invalid file type
         files = {"file": ("test.txt", b"not an image", "text/plain")}
-        data = {"dataset_id": 1}
+        data = {"dataset_id": self.test_dataset_id}
         response = self.client.post("/api/images/upload", files=files, data=data)
         self.assertEqual(response.status_code, 400)
 
@@ -217,7 +224,11 @@ class TestAPIContracts(unittest.TestCase):
         unique_name = f"Consistency Test Category {uuid.uuid4().hex[:8]}"
         response = self.client.post(
             "/api/label-categories",
-            json={"name": unique_name, "color": "#FF0000", "project_id": 1},
+            json={
+                "name": unique_name,
+                "color": "#FF0000",
+                "project_id": self.test_project_id,
+            },
         )
         self.assertEqual(response.status_code, 200)
         data = response.json()
