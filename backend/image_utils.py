@@ -5,7 +5,7 @@ Image processing utilities for BOXER Data Labeling Tool
 import os
 import uuid
 from pathlib import Path
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, Tuple, Optional
 
 import numpy as np
 from PIL import Image as PILImage
@@ -465,21 +465,6 @@ def process_uploaded_image(file_path: str, original_filename: str) -> Dict[str, 
         "file_size": image_info.get("file_size", 0),
         "mime_type": mime_type,
     }
-
-
-def get_supported_formats() -> List[str]:
-    """Get list of supported image formats.
-
-    Returns:
-        List of file extensions for supported image formats.
-    """
-    formats = [".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".webp", ".gif"]
-    # Add special formats if libraries are available
-    if rasterio is not None:
-        formats.append(".r0")
-    if SICDReader is not None:
-        formats.extend([".sicd", ".nitf", ".ntf", ".nff"])
-    return formats
 
 
 def convert_annotation_to_yolo(  # pylint: disable=too-many-locals
